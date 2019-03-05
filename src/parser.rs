@@ -6,6 +6,8 @@ use std::iter::Peekable;
 use std::path::PathBuf;
 use std::vec::IntoIter;
 
+use failure::Fail;
+
 use crate::position::Point;
 use crate::position::Position;
 
@@ -19,15 +21,26 @@ struct Token {
 }
 
 struct Lexer {
-    pos: Point,
+    point: Point,
     src: Peekable<IntoIter<char>>,
     filename: Option<PathBuf>,
 }
 
+#[derive(Debug, Fail, PartialEq)]
+enum LexError {
+    #[fail(display = "no token")]
+    NoToken,
+
+    #[fail(display = "{}: illegal character: {:?}", _0, _1)]
+    IllegalCharacter(Point, char),
+}
+
+type Res<T> = Result<T, LexError>;
+
 impl Lexer {
     fn new(src: Vec<char>, filename: Option<PathBuf>) -> Self {
         Lexer {
-            pos: Point::default(),
+            point: Point::default(),
             src: src.into_iter().peekable(),
             filename,
         }
@@ -42,5 +55,19 @@ impl Lexer {
         P: Into<PathBuf>,
     {
         Lexer::new(src, Some(filename.into()))
+    }
+
+    fn get_point(&self) -> Point {
+        self.point.clone()
+    }
+
+    fn peek(&mut self) -> Res<char> {
+        self.src.peek().cloned().ok_or(LexError::NoToken)
+    }
+
+    fn lex(&mut self) -> Res<Token> {
+        match self.peek()? {
+            ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
+        }
     }
 }

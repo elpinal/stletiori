@@ -4,6 +4,7 @@
 
 use std::fmt;
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct Point {
     line: usize,
     column: usize,
