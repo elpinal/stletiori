@@ -48,3 +48,14 @@ impl Position {
         Position { start, end }
     }
 }
+
+pub(crate) struct Positional<T> {
+    pos: Position,
+    inner: T,
+}
+
+impl<T> Positional<T> {
+    fn get_position(&self) -> &Position {
+        &self.pos
+    }
+}
