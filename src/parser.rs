@@ -98,6 +98,17 @@ impl Lexer {
         self.src.peek().cloned().ok_or(LexError::NoToken)
     }
 
+    fn peek_satisfy<'a, F>(&'a mut self, f: F) -> bool
+    where
+        F: Fn(&'a char) -> bool,
+    {
+        if let Some(ch) = self.src.peek() {
+            f(ch)
+        } else {
+            false
+        }
+    }
+
     fn proceed(&mut self) {
         if let Some(ch) = self.src.next() {
             if ch == '\n' {
@@ -131,11 +142,8 @@ impl Lexer {
             ':' => {
                 let start = self.get_point();
                 self.proceed();
-                match self.peek() {
-                    Ok(ch) if ch.is_ascii_alphabetic() => (),
-                    _ => {
-                        return Ok(one_character(TokenKind::Colon)(start));
-                    }
+                if !self.peek_satisfy(char::is_ascii_alphabetic) {
+                    return Ok(one_character(TokenKind::Colon)(start));
                 }
                 let (s, end) = self.symbol()?;
                 Ok(Token {
