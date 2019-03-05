@@ -1,3 +1,3 @@
 pub(crate) mod language;
-pub(crate) mod parser;
+pub mod parser;
 pub(crate) mod position;

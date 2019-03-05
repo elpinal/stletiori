@@ -3,19 +3,20 @@
 #![allow(dead_code)]
 
 use std::iter::Peekable;
-use std::path::PathBuf;
 use std::vec::IntoIter;
 
-use failure::Fail;
+use failure::*;
 
 use crate::position::Point;
 use crate::position::Position;
 
+#[derive(Debug)]
 enum TokenKind {
     Keyword(String),
 }
 
-struct Token {
+#[derive(Debug)]
+pub struct Token {
     kind: TokenKind,
     pos: Position,
 }
@@ -23,13 +24,12 @@ struct Token {
 struct Lexer {
     point: Point,
     src: Peekable<IntoIter<char>>,
-    filename: Option<PathBuf>,
 }
 
 #[derive(Debug, Fail, PartialEq)]
 enum LexError {
-    #[fail(display = "no token")]
-    NoToken,
+    #[fail(display = "{}: no token", _0)]
+    NoToken(Point),
 
     #[fail(display = "{}: illegal character: {:?}", _0, _1)]
     IllegalCharacter(Point, char),
@@ -38,23 +38,11 @@ enum LexError {
 type Res<T> = Result<T, LexError>;
 
 impl Lexer {
-    fn new(src: Vec<char>, filename: Option<PathBuf>) -> Self {
+    fn new(src: Vec<char>) -> Self {
         Lexer {
             point: Point::default(),
             src: src.into_iter().peekable(),
-            filename,
         }
-    }
-
-    fn without_filename(src: Vec<char>) -> Self {
-        Lexer::new(src, None)
-    }
-
-    fn with_filename<P>(src: Vec<char>, filename: P) -> Self
-    where
-        P: Into<PathBuf>,
-    {
-        Lexer::new(src, Some(filename.into()))
     }
 
     fn get_point(&self) -> Point {
@@ -62,7 +50,10 @@ impl Lexer {
     }
 
     fn peek(&mut self) -> Res<char> {
-        self.src.peek().cloned().ok_or(LexError::NoToken)
+        self.src
+            .peek()
+            .cloned()
+            .ok_or(LexError::NoToken(self.get_point()))
     }
 
     fn lex(&mut self) -> Res<Token> {
@@ -70,4 +61,22 @@ impl Lexer {
             ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
         }
     }
+
+    fn lex_all(&mut self) -> Res<Vec<Token>> {
+        let mut v = Vec::new();
+        loop {
+            match self.lex() {
+                Ok(token) => v.push(token),
+                Err(LexError::NoToken(..)) => return Ok(v),
+                Err(e) => return Err(e),
+            }
+        }
+    }
+}
+
+pub fn parse<I>(src: I) -> Fallible<Vec<Token>>
+where
+    I: IntoIterator<Item = char>,
+{
+    Ok(Lexer::new(src.into_iter().collect()).lex_all()?)
 }

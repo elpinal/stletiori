@@ -37,6 +37,7 @@ impl Point {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Position {
     start: Point,
     end: Point,
