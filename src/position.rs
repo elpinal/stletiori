@@ -42,3 +42,9 @@ pub(crate) struct Position {
     start: Point,
     end: Point,
 }
+
+impl Position {
+    pub(crate) fn new(start: Point, end: Point) -> Self {
+        Position { start, end }
+    }
+}
