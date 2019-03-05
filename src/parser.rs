@@ -21,6 +21,10 @@ enum TokenKind {
     KeywordType,
     Arrow,
     Ident(String),
+    LParen,
+    RParen,
+    LBrack,
+    RBrack,
 }
 
 #[derive(Debug)]
@@ -118,12 +122,11 @@ impl Lexer {
                 self.proceed();
                 self.lex()
             }
-            '?' => self.proceeding(|end| {
-                Ok(Token {
-                    kind: TokenKind::Unknown,
-                    pos: Position::new(end.clone(), end),
-                })
-            }),
+            '?' => Ok(self.proceeding(one_character(TokenKind::Unknown))),
+            '(' => Ok(self.proceeding(one_character(TokenKind::LParen))),
+            ')' => Ok(self.proceeding(one_character(TokenKind::RParen))),
+            '[' => Ok(self.proceeding(one_character(TokenKind::LBrack))),
+            ']' => Ok(self.proceeding(one_character(TokenKind::RBrack))),
             ':' => {
                 let start = self.get_point();
                 self.proceed();
@@ -202,6 +205,13 @@ impl Lexer {
                 Err(e) => return Err(e),
             }
         }
+    }
+}
+
+fn one_character(kind: TokenKind) -> impl FnOnce(Point) -> Token {
+    |end| Token {
+        kind,
+        pos: Position::from(end),
     }
 }
 

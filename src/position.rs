@@ -43,6 +43,12 @@ pub(crate) struct Position {
     end: Point,
 }
 
+impl From<Point> for Position {
+    fn from(p: Point) -> Self {
+        Position::new(p.clone(), p)
+    }
+}
+
 impl Position {
     pub(crate) fn new(start: Point, end: Point) -> Self {
         Position { start, end }
