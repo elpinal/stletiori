@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-struct Point {
+pub struct Point {
     line: usize,
     column: usize,
 }
