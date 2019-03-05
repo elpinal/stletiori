@@ -19,6 +19,7 @@ enum TokenKind {
     Int,
     Bool,
     KeywordType,
+    Arrow,
     Ident(String),
 }
 
@@ -46,6 +47,9 @@ enum LexError {
 
     #[fail(display = "{}: expected alphabetic character, but found {}", _0, _1)]
     ExpectedAlphabetic(Point, Found<char>),
+
+    #[fail(display = "{}: expected {:?}, but found {}", _0, _1, _2)]
+    Expected(Point, char, Found<char>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -130,8 +134,28 @@ impl Lexer {
                     pos: Position::new(start, end),
                 })
             }
+            '-' => {
+                let start = self.get_point();
+                self.proceed();
+                self.arrow(start)
+            }
             ch if ch.is_ascii_alphabetic() => self.ident(),
             ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
+        }
+    }
+
+    fn arrow(&mut self, start: Point) -> Res<Token> {
+        match self.peek() {
+            Ok('>') => {
+                let end = self.get_point();
+                self.proceed();
+                Ok(Token {
+                    kind: TokenKind::Arrow,
+                    pos: Position::new(start, end),
+                })
+            }
+            Ok(ch) => Err(LexError::Expected(self.get_point(), '>', Found::Found(ch))),
+            Err(_) => Err(LexError::Expected(self.get_point(), '>', Found::EOF)),
         }
     }
 
