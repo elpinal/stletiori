@@ -15,6 +15,11 @@ use crate::position::Position;
 #[derive(Debug)]
 enum TokenKind {
     Keyword(String),
+    Unknown,
+    Int,
+    Bool,
+    KeywordType,
+    Ident(String),
 }
 
 #[derive(Debug)]
@@ -100,6 +105,14 @@ impl Lexer {
                 self.proceed();
                 self.lex()
             }
+            '?' => {
+                let start = self.get_point();
+                self.proceed();
+                Ok(Token {
+                    kind: TokenKind::Unknown,
+                    pos: Position::new(start.clone(), start),
+                })
+            }
             ':' => {
                 let start = self.get_point();
                 self.proceed();
@@ -117,6 +130,7 @@ impl Lexer {
                     pos: Position::new(start, end),
                 })
             }
+            ch if ch.is_ascii_alphabetic() => self.ident(),
             ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
         }
     }
@@ -140,6 +154,16 @@ impl Lexer {
         }
     }
 
+    fn ident(&mut self) -> Res<Token> {
+        let start = self.get_point();
+        let (s, end) = self.symbol()?;
+        let kind = reserved_or_ident(s);
+        Ok(Token {
+            kind,
+            pos: Position::new(start, end),
+        })
+    }
+
     fn lex_all(&mut self) -> Res<Vec<Token>> {
         let mut v = Vec::new();
         loop {
@@ -149,6 +173,15 @@ impl Lexer {
                 Err(e) => return Err(e),
             }
         }
+    }
+}
+
+fn reserved_or_ident(s: String) -> TokenKind {
+    match s.as_str() {
+        "int" => TokenKind::Int,
+        "bool" => TokenKind::Bool,
+        "keyword" => TokenKind::KeywordType,
+        _ => TokenKind::Ident(s),
     }
 }
 
