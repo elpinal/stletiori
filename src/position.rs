@@ -27,12 +27,12 @@ impl Point {
         Point { line, column }
     }
 
-    fn new_line(&mut self) {
+    pub fn new_line(&mut self) {
         self.line += 1;
         self.column = 1;
     }
 
-    fn inc_column(&mut self) {
+    pub fn inc_column(&mut self) {
         self.column += 1;
     }
 }

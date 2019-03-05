@@ -56,8 +56,22 @@ impl Lexer {
             .ok_or(LexError::NoToken(self.get_point()))
     }
 
+    fn proceed(&mut self) {
+        if let Some(ch) = self.src.next() {
+            if ch == '\n' {
+                self.point.new_line();
+            } else {
+                self.point.inc_column();
+            }
+        }
+    }
+
     fn lex(&mut self) -> Res<Token> {
         match self.peek()? {
+            ' ' | '\n' | '\t' => {
+                self.proceed();
+                self.lex()
+            }
             ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
         }
     }
