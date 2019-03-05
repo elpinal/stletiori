@@ -25,6 +25,7 @@ enum TokenKind {
     RParen,
     LBrack,
     RBrack,
+    Colon,
 }
 
 #[derive(Debug)]
@@ -132,11 +133,9 @@ impl Lexer {
                 self.proceed();
                 match self.peek() {
                     Ok(ch) if ch.is_ascii_alphabetic() => (),
-                    Ok(ch) => Err(LexError::ExpectedAlphabetic(
-                        self.get_point(),
-                        Found::Found(ch),
-                    ))?,
-                    _ => Err(LexError::ExpectedAlphabetic(self.get_point(), Found::EOF))?,
+                    _ => {
+                        return Ok(one_character(TokenKind::Colon)(start));
+                    }
                 }
                 let (s, end) = self.symbol()?;
                 Ok(Token {
