@@ -28,8 +28,8 @@ struct Lexer {
 
 #[derive(Debug, Fail, PartialEq)]
 enum LexError {
-    #[fail(display = "{}: no token", _0)]
-    NoToken(Point),
+    #[fail(display = "no token")]
+    NoToken,
 
     #[fail(display = "{}: illegal character: {:?}", _0, _1)]
     IllegalCharacter(Point, char),
@@ -50,10 +50,7 @@ impl Lexer {
     }
 
     fn peek(&mut self) -> Res<char> {
-        self.src
-            .peek()
-            .cloned()
-            .ok_or(LexError::NoToken(self.get_point()))
+        self.src.peek().cloned().ok_or(LexError::NoToken)
     }
 
     fn proceed(&mut self) {
@@ -81,7 +78,7 @@ impl Lexer {
         loop {
             match self.lex() {
                 Ok(token) => v.push(token),
-                Err(LexError::NoToken(..)) => return Ok(v),
+                Err(LexError::NoToken) => return Ok(v),
                 Err(e) => return Err(e),
             }
         }
