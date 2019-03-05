@@ -103,20 +103,27 @@ impl Lexer {
         }
     }
 
+    fn proceeding<F, T>(&mut self, f: F) -> T
+    where
+        F: FnOnce(Point) -> T,
+    {
+        let end = self.get_point();
+        self.proceed();
+        f(end)
+    }
+
     fn lex(&mut self) -> Res<Token> {
         match self.peek()? {
             ' ' | '\n' | '\t' => {
                 self.proceed();
                 self.lex()
             }
-            '?' => {
-                let start = self.get_point();
-                self.proceed();
+            '?' => self.proceeding(|end| {
                 Ok(Token {
                     kind: TokenKind::Unknown,
-                    pos: Position::new(start.clone(), start),
+                    pos: Position::new(end.clone(), end),
                 })
-            }
+            }),
             ':' => {
                 let start = self.get_point();
                 self.proceed();
@@ -146,14 +153,12 @@ impl Lexer {
 
     fn arrow(&mut self, start: Point) -> Res<Token> {
         match self.peek() {
-            Ok('>') => {
-                let end = self.get_point();
-                self.proceed();
+            Ok('>') => self.proceeding(|end| {
                 Ok(Token {
                     kind: TokenKind::Arrow,
                     pos: Position::new(start, end),
                 })
-            }
+            }),
             Ok(ch) => Err(LexError::Expected(self.get_point(), '>', Found::Found(ch))),
             Err(_) => Err(LexError::Expected(self.get_point(), '>', Found::EOF)),
         }
