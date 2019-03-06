@@ -9,10 +9,12 @@ use std::vec::IntoIter;
 
 use failure::*;
 
+use crate::language::BaseType;
+use crate::language::Type;
 use crate::position::Point;
 use crate::position::Position;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum TokenKind {
     Keyword(String),
     Unknown,
@@ -231,9 +233,87 @@ fn reserved_or_ident(s: String) -> TokenKind {
     }
 }
 
-pub fn parse<I>(src: I) -> Fallible<Vec<Token>>
+struct Parser {
+    src: Peekable<IntoIter<Token>>,
+}
+
+#[derive(Debug, Fail, PartialEq)]
+enum ParseError {
+    #[fail(display = "unexpected end of file")]
+    UnexpectedEOF,
+
+    #[fail(display = "{}: expected {}, but found {:?}", _0, _1, _2)]
+    Expected(Position, String, TokenKind),
+
+    #[fail(display = "{}: expected {:?}, but found {:?}", _0, _1, _2)]
+    ExpectedToken(Position, TokenKind, TokenKind),
+}
+
+type ParseRes<T> = Result<T, ParseError>;
+
+impl ParseError {
+    fn expected(s: &str, token: &Token) -> Self {
+        ParseError::Expected(token.pos.clone(), s.to_string(), token.kind.clone())
+    }
+}
+
+impl Parser {
+    fn new(src: Vec<Token>) -> Self {
+        Parser {
+            src: src.into_iter().peekable(),
+        }
+    }
+
+    fn peek(&mut self) -> ParseRes<&Token> {
+        self.src.peek().ok_or(ParseError::UnexpectedEOF)
+    }
+
+    fn proceed(&mut self) {
+        self.src.next();
+    }
+
+    fn proceeding<T>(&mut self, x: T) -> ParseRes<T> {
+        self.proceed();
+        Ok(x)
+    }
+
+    fn expect_eof(&mut self) -> ParseRes<()> {
+        if let Some(token) = self.src.peek() {
+            Err(ParseError::expected("eof", token.clone()))?;
+        }
+        Ok(())
+    }
+
+    fn r#type(&mut self) -> ParseRes<Type> {
+        let ty = self.type_atom()?;
+        match self.peek().map(|t| &t.kind) {
+            Ok(&TokenKind::Arrow) => {
+                self.proceed();
+                Ok(Type::arrow(ty, self.r#type()?))
+            }
+            _ => Ok(ty),
+        }
+    }
+
+    fn type_atom(&mut self) -> ParseRes<Type> {
+        let token = self.peek()?;
+        match token.kind {
+            TokenKind::Int => self.proceeding(Type::Base(BaseType::Int)),
+            TokenKind::Bool => self.proceeding(Type::Base(BaseType::Bool)),
+            TokenKind::KeywordType => self.proceeding(Type::Base(BaseType::Keyword)),
+            TokenKind::Unknown => self.proceeding(Type::Unknown),
+            _ => Err(ParseError::expected("type", token)),
+        }
+    }
+}
+
+pub fn parse<I>(src: I) -> Fallible<Type>
 where
     I: IntoIterator<Item = char>,
 {
-    Ok(Lexer::new(src.into_iter().collect()).lex_all()?)
+    let tokens = Lexer::new(src.into_iter().collect()).lex_all()?;
+    let mut p = Parser::new(tokens);
+    let ty = p.r#type()?;
+    p.expect_eof()?;
+    Ok(ty)
 }

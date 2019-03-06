@@ -37,7 +37,7 @@ impl Point {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Position {
     start: Point,
     end: Point,
@@ -46,6 +46,12 @@ pub(crate) struct Position {
 impl From<Point> for Position {
     fn from(p: Point) -> Self {
         Position::new(p.clone(), p)
+    }
+}
+
+impl fmt::Display for Position {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} to {}", self.start, self.end)
     }
 }
 

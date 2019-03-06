@@ -6,13 +6,15 @@ use crate::position::Positional;
 
 struct Name(String);
 
-enum BaseType {
+#[derive(Debug)]
+pub enum BaseType {
     Int,
     Bool,
     Keyword,
 }
 
-enum Type {
+#[derive(Debug)]
+pub enum Type {
     Base(BaseType),
     Unknown,
     Arrow(Box<Type>, Box<Type>),
@@ -25,4 +27,10 @@ enum Term {
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
     Keyword(String),
+}
+
+impl Type {
+    pub(crate) fn arrow(ty1: Type, ty2: Type) -> Self {
+        Type::Arrow(Box::new(ty1), Box::new(ty2))
+    }
 }
