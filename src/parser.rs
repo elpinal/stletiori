@@ -10,6 +10,8 @@ use std::vec::IntoIter;
 use failure::*;
 
 use crate::language::BaseType;
+use crate::language::Name;
+use crate::language::Term;
 use crate::language::Type;
 use crate::position::Point;
 use crate::position::Position;
@@ -29,6 +31,7 @@ enum TokenKind {
     LBrack,
     RBrack,
     Colon,
+    Fn,
 }
 
 #[derive(Debug)]
@@ -230,6 +233,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "int" => TokenKind::Int,
         "bool" => TokenKind::Bool,
         "keyword" => TokenKind::KeywordType,
+        "fn" => TokenKind::Fn,
         _ => TokenKind::Ident(s),
     }
 }
@@ -276,8 +280,8 @@ impl Parser {
         self.src.peek().ok_or(ParseError::UnexpectedEOF)
     }
 
-    fn next(&mut self) -> Option<Token> {
-        self.src.next()
+    fn next(&mut self) -> ParseRes<Token> {
+        self.src.next().ok_or(ParseError::UnexpectedEOF)
     }
 
     fn proceed(&mut self) {
@@ -291,9 +295,9 @@ impl Parser {
 
     fn expect(&mut self, kind: TokenKind) -> ParseRes<Token> {
         match self.next() {
-            Some(token) if token.kind == kind => Ok(token),
-            Some(token) => Err(ParseError::expected_token(kind, token)),
-            None => Err(ParseError::ExpectedTokenEOF(kind)),
+            Ok(token) if token.kind == kind => Ok(token),
+            Ok(token) => Err(ParseError::expected_token(kind, token)),
+            Err(_) => Err(ParseError::ExpectedTokenEOF(kind)),
         }
     }
 
@@ -342,15 +346,57 @@ impl Parser {
             _ => Err(ParseError::expected("type", token)),
         }
     }
+
+    fn name(&mut self) -> ParseRes<Name> {
+        let token = self.next()?;
+        match token.kind {
+            TokenKind::Ident(s) => Ok(Name::from(s)),
+            _ => Err(ParseError::expected("name", &token)),
+        }
+    }
+
+    fn term(&mut self) -> ParseRes<Positional<Term>> {
+        let token = self.peek()?;
+        let start = token.pos.clone();
+        match token.kind {
+            TokenKind::Ident(ref s) => {
+                let s = s.clone();
+                self.proceeding(Positional::new(start, Term::Var(Name::from(s))))
+            }
+            TokenKind::LParen => {
+                self.proceed();
+                match self.peek()?.kind {
+                    TokenKind::Fn => {
+                        self.proceed();
+                        self.expect(TokenKind::LBrack)?;
+                        let name = self.name()?;
+                        self.expect(TokenKind::Colon)?;
+                        let ty = self.r#type()?;
+                        self.expect(TokenKind::RBrack)?;
+                        let t = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(start.to(end), Term::abs(name, ty, t)))
+                    }
+                    _ => {
+                        let t1 = self.term()?;
+                        let t2 = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(start.to(end), Term::app(t1, t2)))
+                    }
+                }
+            }
+            _ => Err(ParseError::expected("term", token)),
+        }
+    }
 }
 
-pub fn parse<I>(src: I) -> Fallible<Positional<Type>>
+pub fn parse<I>(src: I) -> Fallible<Positional<Term>>
 where
     I: IntoIterator<Item = char>,
 {
     let tokens = Lexer::new(src.into_iter().collect()).lex_all()?;
     let mut p = Parser::new(tokens);
-    let ty = p.r#type()?;
+    let ty = p.term()?;
     p.expect_eof()?;
     Ok(ty)
 }
