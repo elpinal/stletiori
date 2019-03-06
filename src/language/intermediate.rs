@@ -39,8 +39,8 @@ pub enum EnvError {
     #[fail(display = "unbound variable: {:?}", _0)]
     UnboundVariable(Variable),
 
-    #[fail(display = "unbound name: {:?}", _0)]
-    UnboundName(Name),
+    #[fail(display = "{}: unbound name: {:?}", _0, _1)]
+    UnboundName(Position, Name),
 }
 
 impl Env {
@@ -52,11 +52,11 @@ impl Env {
             .ok_or_else(|| EnvError::UnboundVariable(v))
     }
 
-    fn get_by_name(&self, name: &Name) -> Result<(&Type, Variable), EnvError> {
+    fn get_by_name(&self, pos: Position, name: &Name) -> Result<(&Type, Variable), EnvError> {
         let n = *self
             .nmap
             .get(name)
-            .ok_or_else(|| EnvError::UnboundName(name.clone()))?;
+            .ok_or_else(|| EnvError::UnboundName(pos, name.clone()))?;
         Ok((
             self.venv.get(n).expect("unexpected error"),
             Variable(self.venv.len() - n - 1),
@@ -115,7 +115,7 @@ impl Term {
         let t = t.inner;
         match t {
             Tm::Var(name) => {
-                let (ty, v) = env.get_by_name(&name)?;
+                let (ty, v) = env.get_by_name(pos, &name)?;
                 Ok((Var(v), ty.clone()))
             }
             Tm::Abs(name, ty1, t) => {
