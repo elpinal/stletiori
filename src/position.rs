@@ -68,7 +68,7 @@ impl Position {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Positional<T> {
     pub(crate) pos: Position,
     pub(crate) inner: T,

@@ -2,9 +2,11 @@
 
 #![allow(dead_code)]
 
+mod intermediate;
+
 use crate::position::Positional;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Name(String);
 
 impl From<String> for Name {
@@ -13,14 +15,14 @@ impl From<String> for Name {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum BaseType {
     Int,
     Bool,
     Keyword,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Type {
     Base(BaseType),
     Unknown,
