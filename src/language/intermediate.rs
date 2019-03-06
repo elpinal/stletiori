@@ -113,6 +113,9 @@ pub enum TypeError {
 
     #[fail(display = "{}: {:?} is not equal to {:?}", _0, _1, _2)]
     NotEqual(Position, Type, Type),
+
+    #[fail(display = "{}: inconsistent types: {:?} and {:?}", _0, _1, _2)]
+    NotConsistent(Position, Type, Type),
 }
 
 impl From<EnvError> for TypeError {
@@ -121,11 +124,14 @@ impl From<EnvError> for TypeError {
     }
 }
 
-impl TryFrom<Positional<Tm>> for (Term, Type) {
+impl TryFrom<Positional<Tm>> for (Positional<Term>, Type) {
     type Error = TranslateError;
 
     fn try_from(t: Positional<Tm>) -> Result<Self, Self::Error> {
-        Term::from_source(t, &mut Env::default())
+        let pos = t.pos.clone();
+        let (t, ty) = Term::from_source(t, &mut Env::default())?;
+        let t = Positional::new(pos, t);
+        Ok((t, ty))
     }
 }
 
@@ -224,7 +230,18 @@ impl Positional<Term> {
                 }
             }
             Keyword(_) => Ok(Type::Base(BaseType::Keyword)),
-            _ => unimplemented!(),
+            Cast(ref ty, ref t) => {
+                let ty0 = Positional::new(pos.clone(), *t.clone()).type_of(env)?;
+                if ty0.is_consistent(ty) {
+                    Ok(ty.clone())
+                } else {
+                    Err(TypeError::NotConsistent(pos, ty0, ty.clone()))
+                }
+            }
         }
+    }
+
+    pub fn typecheck(&self) -> Result<Type, TypeError> {
+        self.type_of(&mut Env::default())
     }
 }

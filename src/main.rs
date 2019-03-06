@@ -26,6 +26,10 @@ struct Argument {
     #[structopt(short, long)]
     translate: bool,
 
+    /// Stops after type checking a program in the intermediate language.
+    #[structopt(short = "i", long = "typecheck-intermediate")]
+    typecheck_intermediate: bool,
+
     /// Input filename
     #[structopt(name = "filename", parse(from_os_str))]
     filename: PathBuf,
@@ -57,6 +61,25 @@ where
         println!("{:?}", t);
         println!("{}:", "type".bright_cyan().bold());
         println!("{:?}", ty);
+        return Ok(());
+    }
+    let ty0 = t.typecheck()?;
+    if ty0 != ty {
+        bail!(
+            "{}:\n\
+             {}:\n\
+             {:?}\n\
+             {}:\n\
+             {:?}",
+            "[bug] invariant violation (lemma 3)".bright_red().bold(),
+            "got".bright_yellow().bold(),
+            ty0,
+            "expected".bright_yellow().bold(),
+            ty
+        );
+    }
+    if arg.typecheck_intermediate {
+        println!("{:?}", ty0);
         return Ok(());
     }
     Ok(())
