@@ -10,6 +10,8 @@ use structopt::StructOpt;
 
 use failure::*;
 
+use colored::*;
+
 use stletiori::parser::parse;
 
 /// Stletiori: generating HTML.
@@ -51,7 +53,9 @@ where
     }
     let (t, ty) = t.try_into()?;
     if arg.translate {
+        println!("{}:", "term".bright_cyan().bold());
         println!("{:?}", t);
+        println!("{}:", "type".bright_cyan().bold());
         println!("{:?}", ty);
         return Ok(());
     }
