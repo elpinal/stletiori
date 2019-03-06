@@ -17,7 +17,7 @@ type PTerm = Box<Positional<Term>>;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Variable(usize);
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Term {
     Var(Variable),
     Abs(Name, Positional<Type>, PTerm),
@@ -100,6 +100,27 @@ impl From<EnvError> for TranslateError {
     }
 }
 
+#[derive(Debug, Fail, PartialEq)]
+pub enum TypeError {
+    #[fail(display = "environment error: {}", _0)]
+    Env(EnvError),
+
+    #[fail(
+        display = "{}: not function type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotFunction(Position, Type, Term),
+
+    #[fail(display = "{}: {:?} is not equal to {:?}", _0, _1, _2)]
+    NotEqual(Position, Type, Type),
+}
+
+impl From<EnvError> for TypeError {
+    fn from(e: EnvError) -> Self {
+        TypeError::Env(e)
+    }
+}
+
 impl TryFrom<Positional<Tm>> for (Term, Type) {
     type Error = TranslateError;
 
@@ -109,6 +130,18 @@ impl TryFrom<Positional<Tm>> for (Term, Type) {
 }
 
 impl Term {
+    fn abs(name: Name, ty: Positional<Type>, t: Positional<Term>) -> Self {
+        Term::Abs(name, ty, Box::new(t))
+    }
+
+    fn app(t1: Positional<Term>, t2: Positional<Term>) -> Self {
+        Term::App(Box::new(t1), Box::new(t2))
+    }
+
+    fn cast(ty: Type, t: Term) -> Self {
+        Term::Cast(ty, Box::new(t))
+    }
+
     fn from_source(t: Positional<Tm>, env: &mut Env) -> Result<(Self, Type), TranslateError> {
         use Term::*;
         let pos = t.pos;
@@ -166,16 +199,32 @@ impl Term {
             Tm::Keyword(s) => Ok((Keyword(s), Type::Base(BaseType::Keyword))),
         }
     }
+}
 
-    fn abs(name: Name, ty: Positional<Type>, t: Positional<Term>) -> Self {
-        Term::Abs(name, ty, Box::new(t))
-    }
-
-    fn app(t1: Positional<Term>, t2: Positional<Term>) -> Self {
-        Term::App(Box::new(t1), Box::new(t2))
-    }
-
-    fn cast(ty: Type, t: Term) -> Self {
-        Term::Cast(ty, Box::new(t))
+impl Positional<Term> {
+    fn type_of(&self, env: &mut Env) -> Result<Type, TypeError> {
+        use Term::*;
+        let pos = self.pos.clone();
+        match self.inner {
+            Var(v) => Ok(env.get(v)?.clone()),
+            Abs(ref name, ref ty1, ref t) => {
+                let state = env.insert(name.clone(), ty1.inner.clone());
+                let ty2 = t.type_of(env)?;
+                env.drop(name.clone(), state);
+                Ok(Type::arrow(ty1.inner.clone(), ty2))
+            }
+            App(ref t1, ref t2) => {
+                let tp1 = t1.pos.clone();
+                let ty1 = t1.type_of(env)?;
+                let ty2 = t2.type_of(env)?;
+                match ty1 {
+                    Type::Arrow(ty11, ty12) if *ty11 == ty2 => Ok(*ty12),
+                    Type::Arrow(ty11, _) => Err(TypeError::NotEqual(pos, *ty11, ty2)),
+                    _ => Err(TypeError::NotFunction(tp1, ty1, t1.inner.clone())),
+                }
+            }
+            Keyword(_) => Ok(Type::Base(BaseType::Keyword)),
+            _ => unimplemented!(),
+        }
     }
 }
