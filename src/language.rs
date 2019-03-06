@@ -15,14 +15,14 @@ impl From<String> for Name {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum BaseType {
     Int,
     Bool,
     Keyword,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Base(BaseType),
     Unknown,
@@ -42,6 +42,20 @@ pub enum Term {
 impl Type {
     pub(crate) fn arrow(ty1: Type, ty2: Type) -> Self {
         Type::Arrow(Box::new(ty1), Box::new(ty2))
+    }
+
+    fn is_consistent(&self, ty: &Type) -> bool {
+        use Type::*;
+        if self == ty {
+            return true;
+        }
+        match (self, ty) {
+            (Unknown, _) | (_, Unknown) => true,
+            (Arrow(ty11, ty12), Arrow(ty21, ty22)) => {
+                ty11.is_consistent(ty21) && ty12.is_consistent(ty22)
+            }
+            _ => false,
+        }
     }
 }
 
