@@ -13,6 +13,7 @@ use crate::language::BaseType;
 use crate::language::Type;
 use crate::position::Point;
 use crate::position::Position;
+use crate::position::Positional;
 
 #[derive(Clone, Debug, PartialEq)]
 enum TokenKind {
@@ -303,36 +304,47 @@ impl Parser {
         Ok(())
     }
 
-    fn r#type(&mut self) -> ParseRes<Type> {
+    fn r#type(&mut self) -> ParseRes<Positional<Type>> {
         let ty = self.type_atom()?;
         match self.peek().map(|t| &t.kind) {
             Ok(&TokenKind::Arrow) => {
                 self.proceed();
-                Ok(Type::arrow(ty, self.r#type()?))
+                let ty1 = self.r#type()?;
+                Ok(Positional::new(
+                    ty.pos.to(ty1.pos),
+                    Type::arrow(ty.inner, ty1.inner),
+                ))
             }
             _ => Ok(ty),
         }
     }
 
-    fn type_atom(&mut self) -> ParseRes<Type> {
+    fn type_atom(&mut self) -> ParseRes<Positional<Type>> {
         let token = self.peek()?;
+        let start = token.pos.clone();
+        macro_rules! one_token {
+            ($p:expr, $ty:expr) => {
+                $p.proceeding(Positional::new(start, $ty));
+            };
+        }
+
         match token.kind {
-            TokenKind::Int => self.proceeding(Type::Base(BaseType::Int)),
-            TokenKind::Bool => self.proceeding(Type::Base(BaseType::Bool)),
-            TokenKind::KeywordType => self.proceeding(Type::Base(BaseType::Keyword)),
-            TokenKind::Unknown => self.proceeding(Type::Unknown),
+            TokenKind::Int => one_token!(self, Type::Base(BaseType::Int)),
+            TokenKind::Bool => one_token!(self, Type::Base(BaseType::Bool)),
+            TokenKind::KeywordType => one_token!(self, Type::Base(BaseType::Keyword)),
+            TokenKind::Unknown => one_token!(self, Type::Unknown),
             TokenKind::LParen => {
                 self.proceed();
-                let ty = self.r#type()?;
-                self.expect(TokenKind::RParen)?;
-                Ok(ty)
+                let ty = self.r#type()?.inner;
+                let end = self.expect(TokenKind::RParen)?.pos;
+                Ok(Positional::new(start.to(end), ty))
             }
             _ => Err(ParseError::expected("type", token)),
         }
     }
 }
 
-pub fn parse<I>(src: I) -> Fallible<Type>
+pub fn parse<I>(src: I) -> Fallible<Positional<Type>>
 where
     I: IntoIterator<Item = char>,
 {

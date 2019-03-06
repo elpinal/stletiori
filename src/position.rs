@@ -59,15 +59,23 @@ impl Position {
     pub(crate) fn new(start: Point, end: Point) -> Self {
         Position { start, end }
     }
+
+    pub(crate) fn to(self, p: Position) -> Self {
+        Position {
+            start: self.start,
+            end: p.end,
+        }
+    }
 }
 
-pub(crate) struct Positional<T> {
-    pos: Position,
-    inner: T,
+#[derive(Debug)]
+pub struct Positional<T> {
+    pub(crate) pos: Position,
+    pub(crate) inner: T,
 }
 
 impl<T> Positional<T> {
-    fn get_position(&self) -> &Position {
-        &self.pos
+    pub(crate) fn new(pos: Position, inner: T) -> Self {
+        Positional { pos, inner }
     }
 }
