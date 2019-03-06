@@ -9,6 +9,7 @@ use super::BaseType;
 use super::Name;
 use super::Term as Tm;
 use super::Type;
+use crate::position::Position;
 use crate::position::Positional;
 
 type PTerm = Box<Positional<Term>>;
@@ -16,7 +17,7 @@ type PTerm = Box<Positional<Term>>;
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Variable(usize);
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Term {
     Var(Variable),
     Abs(Name, Positional<Type>, PTerm),
@@ -82,6 +83,15 @@ impl Env {
 enum TranslateError {
     #[fail(display = "environment error: {}", _0)]
     Env(EnvError),
+
+    #[fail(
+        display = "{}: not function type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotFunction(Position, Type, Term),
+
+    #[fail(display = "{}: inconsistent types: {:?} and {:?}", _0, _1, _2)]
+    NotConsistent(Position, Type, Type),
 }
 
 impl From<EnvError> for TranslateError {
@@ -90,17 +100,19 @@ impl From<EnvError> for TranslateError {
     }
 }
 
-impl TryFrom<Tm> for (Term, Type) {
+impl TryFrom<Positional<Tm>> for (Term, Type) {
     type Error = TranslateError;
 
-    fn try_from(t: Tm) -> Result<Self, Self::Error> {
+    fn try_from(t: Positional<Tm>) -> Result<Self, Self::Error> {
         Term::from_source(t, &mut Env::default())
     }
 }
 
 impl Term {
-    fn from_source(t: Tm, env: &mut Env) -> Result<(Self, Type), TranslateError> {
+    fn from_source(t: Positional<Tm>, env: &mut Env) -> Result<(Self, Type), TranslateError> {
         use Term::*;
+        let pos = t.pos;
+        let t = t.inner;
         match t {
             Tm::Var(name) => {
                 let (ty, v) = env.get_by_name(&name)?;
@@ -108,8 +120,8 @@ impl Term {
             }
             Tm::Abs(name, ty1, t) => {
                 let state = env.insert(name.clone(), ty1.inner.clone());
-                let tp = t.pos;
-                let (t, ty2) = Term::from_source(t.inner, env)?;
+                let tp = t.pos.clone();
+                let (t, ty2) = Term::from_source(*t, env)?;
                 env.drop(name.clone(), state);
                 Ok((
                     Term::abs(name, ty1.clone(), Positional::new(tp, t)),
@@ -117,10 +129,10 @@ impl Term {
                 ))
             }
             Tm::App(t1, t2) => {
-                let tp1 = t1.pos;
-                let tp2 = t2.pos;
-                let (t1, ty1) = Term::from_source(t1.inner, env)?;
-                let (t2, ty2) = Term::from_source(t2.inner, env)?;
+                let tp1 = t1.pos.clone();
+                let tp2 = t2.pos.clone();
+                let (t1, ty1) = Term::from_source(*t1, env)?;
+                let (t2, ty2) = Term::from_source(*t2, env)?;
                 match ty1 {
                     Type::Unknown => Ok((
                         Term::app(
@@ -129,7 +141,26 @@ impl Term {
                         ),
                         Type::Unknown,
                     )),
-                    _ => unimplemented!(),
+                    Type::Arrow(ty11, ty12) => {
+                        if *ty11 == ty2 {
+                            return Ok((
+                                Term::app(Positional::new(tp1, t1), Positional::new(tp2, t2)),
+                                *ty12,
+                            ));
+                        }
+                        if ty11.is_consistent(&ty2) {
+                            Ok((
+                                Term::app(
+                                    Positional::new(tp1, t1),
+                                    Positional::new(tp2, Term::cast(*ty11, t2)),
+                                ),
+                                *ty12,
+                            ))
+                        } else {
+                            Err(TranslateError::NotConsistent(pos, *ty11, ty2))
+                        }
+                    }
+                    _ => Err(TranslateError::NotFunction(tp1, ty1, t1)),
                 }
             }
             Tm::Keyword(s) => Ok((Keyword(s), Type::Base(BaseType::Keyword))),
