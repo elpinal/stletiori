@@ -15,10 +15,10 @@ use crate::position::Positional;
 type PTerm = Box<Positional<Term>>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Variable(usize);
+pub struct Variable(usize);
 
 #[derive(Debug, PartialEq)]
-enum Term {
+pub enum Term {
     Var(Variable),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
@@ -35,7 +35,7 @@ struct Env {
 struct EnvState(Option<usize>);
 
 #[derive(Debug, Fail, PartialEq)]
-enum EnvError {
+pub enum EnvError {
     #[fail(display = "unbound variable: {:?}", _0)]
     UnboundVariable(Variable),
 
@@ -80,7 +80,7 @@ impl Env {
 }
 
 #[derive(Debug, Fail, PartialEq)]
-enum TranslateError {
+pub enum TranslateError {
     #[fail(display = "environment error: {}", _0)]
     Env(EnvError),
 

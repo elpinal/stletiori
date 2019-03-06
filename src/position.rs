@@ -38,7 +38,7 @@ impl Point {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Position {
+pub struct Position {
     start: Point,
     end: Point,
 }

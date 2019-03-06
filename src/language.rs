@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-mod intermediate;
+pub mod intermediate;
 
 use crate::position::Positional;
 
