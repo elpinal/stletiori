@@ -247,6 +247,9 @@ enum ParseError {
 
     #[fail(display = "{}: expected {:?}, but found {:?}", _0, _1, _2)]
     ExpectedToken(Position, TokenKind, TokenKind),
+
+    #[fail(display = "expected {:?}, but found end of file", _0)]
+    ExpectedTokenEOF(TokenKind),
 }
 
 type ParseRes<T> = Result<T, ParseError>;
@@ -254,6 +257,10 @@ type ParseRes<T> = Result<T, ParseError>;
 impl ParseError {
     fn expected(s: &str, token: &Token) -> Self {
         ParseError::Expected(token.pos.clone(), s.to_string(), token.kind.clone())
+    }
+
+    fn expected_token(kind: TokenKind, token: Token) -> Self {
+        ParseError::ExpectedToken(token.pos, kind, token.kind)
     }
 }
 
@@ -268,6 +275,10 @@ impl Parser {
         self.src.peek().ok_or(ParseError::UnexpectedEOF)
     }
 
+    fn next(&mut self) -> Option<Token> {
+        self.src.next()
+    }
+
     fn proceed(&mut self) {
         self.src.next();
     }
@@ -277,9 +288,17 @@ impl Parser {
         Ok(x)
     }
 
+    fn expect(&mut self, kind: TokenKind) -> ParseRes<Token> {
+        match self.next() {
+            Some(token) if token.kind == kind => Ok(token),
+            Some(token) => Err(ParseError::expected_token(kind, token)),
+            None => Err(ParseError::ExpectedTokenEOF(kind)),
+        }
+    }
+
     fn expect_eof(&mut self) -> ParseRes<()> {
         if let Some(token) = self.src.peek() {
-            Err(ParseError::expected("eof", token.clone()))?;
+            Err(ParseError::expected("end of file", token.clone()))?;
         }
         Ok(())
     }
@@ -302,6 +321,12 @@ impl Parser {
             TokenKind::Bool => self.proceeding(Type::Base(BaseType::Bool)),
             TokenKind::KeywordType => self.proceeding(Type::Base(BaseType::Keyword)),
             TokenKind::Unknown => self.proceeding(Type::Unknown),
+            TokenKind::LParen => {
+                self.proceed();
+                let ty = self.r#type()?;
+                self.expect(TokenKind::RParen)?;
+                Ok(ty)
+            }
             _ => Err(ParseError::expected("type", token)),
         }
     }
