@@ -7,6 +7,7 @@ use std::convert::TryFrom;
 
 use failure::Fail;
 
+use super::BaseType;
 use super::Lit;
 use super::Name;
 use super::Term as Tm;
@@ -25,6 +26,7 @@ pub enum Term {
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
     Let(Name, PTerm, PTerm),
+    Vector(Vec<Positional<Term>>),
     Cast(Type, Box<Term>),
     Lit(Lit),
 }
@@ -196,6 +198,13 @@ impl Term {
                     Term::r#let(name, Positional::new(tp1, t1), Positional::new(tp2, t2)),
                     ty2,
                 ))
+            }
+            Tm::Vector(v) => {
+                let v = v
+                    .into_iter()
+                    .map(|t| Ok(Positional::new(t.pos.clone(), Term::from_source(t, env)?.0)))
+                    .collect::<Result<_, TranslateError>>()?;
+                Ok((Term::Vector(v), Type::Base(BaseType::Vector)))
             }
             Tm::Lit(l) => {
                 let ty = l.type_of();

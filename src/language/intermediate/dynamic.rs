@@ -6,6 +6,7 @@ use failure::Fail;
 
 use super::Term as Tm;
 use super::Variable;
+use crate::language::BaseType;
 use crate::language::Lit;
 use crate::language::Type;
 use crate::position::Position;
@@ -31,6 +32,7 @@ pub enum Term {
     Abs(Tagged<BTerm>),
     App(BTerm, BTerm),
     Let(BTerm, BTerm),
+    Vector(Vec<Term>),
     Cast(Type, BTerm),
     Lit(Lit),
 }
@@ -42,6 +44,13 @@ impl Term {
 
     fn r#let(t1: Term, t2: Term) -> Self {
         Term::Let(Box::new(t1), Box::new(t2))
+    }
+
+    fn vector<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = Term>,
+    {
+        Term::Vector(iter.into_iter().collect())
     }
 }
 
@@ -102,6 +111,13 @@ impl Positional<Tm> {
                 ctx.drop();
                 Ok((Term::r#let(s1, s2), ty2))
             }
+            Vector(ref v) => {
+                let xs = v
+                    .iter()
+                    .map(|t| Ok(t.type_of(ctx)?.0))
+                    .collect::<Result<_, TypeError>>()?;
+                Ok((Term::Vector(xs), Type::Base(BaseType::Vector)))
+            }
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
                 if ty0.is_consistent(ty) {
@@ -151,6 +167,7 @@ impl Context {
 pub enum SValue {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
+    Vector(Vec<Value>),
     Lit(Lit),
 }
 
@@ -166,6 +183,7 @@ impl From<SValue> for Term {
         match sv {
             SValue::Var(v) => Term::Var(v),
             SValue::Abs(t) => Term::Abs(t),
+            SValue::Vector(t) => Term::vector(t.into_iter().map(Term::from)),
             SValue::Lit(l) => Term::Lit(l),
         }
     }
@@ -191,6 +209,7 @@ impl SValue {
         match *self {
             SValue::Var(ref v) => v.tag.clone(),
             SValue::Abs(ref t) => t.tag.clone(),
+            SValue::Vector(_) => Type::Base(BaseType::Vector),
             SValue::Lit(ref l) => l.type_of(),
         }
     }
@@ -233,6 +252,7 @@ impl Term {
                 t1.map(f, c);
                 t2.map(f, c + 1);
             }
+            Vector(ref mut v) => v.iter_mut().for_each(|t| t.map(f, c)),
             Cast(_, ref mut t) => t.map(f, c),
             Lit(_) => (),
         }
@@ -295,6 +315,11 @@ impl Term {
                 t2.subst_top(&mut v1.into());
                 t2.reduce()
             }
+            Vector(v) => Ok(Value::SValue(SValue::Vector(
+                v.into_iter()
+                    .map(|t| (t.reduce()))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ))),
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();
                 let ty0 = v.type_of();

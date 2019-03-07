@@ -20,6 +20,7 @@ pub enum BaseType {
     Int,
     Bool,
     Keyword,
+    Vector,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -37,6 +38,7 @@ pub enum Term {
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
     Let(Name, PTerm, PTerm),
+    Vector(Vec<Positional<Term>>),
     Lit(Lit),
 }
 

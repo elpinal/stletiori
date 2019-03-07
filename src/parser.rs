@@ -439,6 +439,15 @@ impl Parser {
                     }
                 }
             }
+            TokenKind::LBrack => {
+                self.proceed();
+                let mut v = Vec::new();
+                while let Ok(t) = self.term() {
+                    v.push(t);
+                }
+                let end = self.expect(TokenKind::RBrack)?.pos;
+                Ok(Positional::new(start.to(end), Term::Vector(v)))
+            }
             TokenKind::Lit(ref l) => {
                 let l = l.clone();
                 self.proceeding(Positional::new(start, Term::Lit(l)))
