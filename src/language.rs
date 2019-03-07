@@ -42,6 +42,8 @@ pub enum Term {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Lit {
     Keyword(String),
+    Int(isize),
+    Bool(bool),
 }
 
 impl Type {
@@ -79,6 +81,8 @@ impl Lit {
         use Lit::*;
         match *self {
             Keyword(_) => Type::Base(BaseType::Keyword),
+            Int(_) => Type::Base(BaseType::Int),
+            Bool(_) => Type::Base(BaseType::Bool),
         }
     }
 }
