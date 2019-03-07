@@ -34,6 +34,7 @@ enum TokenKind {
     Colon,
     Fn,
     Let,
+    DoubleQuote,
 }
 
 #[derive(Debug)]
@@ -63,6 +64,9 @@ enum LexError {
 
     #[fail(display = "{}: expected {:?}, but found {}", _0, _1, _2)]
     Expected(Point, char, Found<char>),
+
+    #[fail(display = "non-terminated string: it starts at {}", _0)]
+    NonTerminatedString(Point),
 }
 
 #[derive(Debug, PartialEq)]
@@ -164,6 +168,7 @@ impl Lexer {
                 self.proceed();
                 self.arrow(start)
             }
+            '"' => self.string(),
             ch if ch.is_ascii_alphabetic() => self.ident(),
             ch if ch.is_ascii_digit() => self.int(),
             ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
@@ -229,6 +234,28 @@ impl Lexer {
             kind: TokenKind::Lit(Lit::Int(n)),
             pos: Position::new(start, end),
         })
+    }
+
+    fn string(&mut self) -> Res<Token> {
+        let start = self.get_point();
+        self.proceed();
+        let mut v = Vec::new();
+        loop {
+            if let Ok(ch) = self.peek() {
+                if ch == '"' {
+                    let end = self.get_point();
+                    self.proceed();
+                    return Ok(Token {
+                        kind: TokenKind::Lit(Lit::String(String::from_iter(v))),
+                        pos: Position::new(start, end),
+                    });
+                }
+                v.push(ch);
+                self.proceed();
+            } else {
+                return Err(LexError::NonTerminatedString(start));
+            }
+        }
     }
 
     fn lex_all(&mut self) -> Res<Vec<Token>> {

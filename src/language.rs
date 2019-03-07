@@ -21,6 +21,7 @@ pub enum BaseType {
     Bool,
     Keyword,
     Vector,
+    String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +48,7 @@ pub enum Lit {
     Keyword(String),
     Int(isize),
     Bool(bool),
+    String(String),
 }
 
 impl Type {
@@ -90,6 +92,7 @@ impl Lit {
             Keyword(_) => Type::Base(BaseType::Keyword),
             Int(_) => Type::Base(BaseType::Int),
             Bool(_) => Type::Base(BaseType::Bool),
+            String(_) => Type::Base(BaseType::String),
         }
     }
 }
