@@ -24,6 +24,7 @@ pub enum Term {
     Var(Variable),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
+    Let(Name, PTerm, PTerm),
     Cast(Type, Box<Term>),
     Lit(Lit),
 }
@@ -122,6 +123,10 @@ impl Term {
         Term::App(Box::new(t1), Box::new(t2))
     }
 
+    fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
+        Term::Let(name, Box::new(t1), Box::new(t2))
+    }
+
     fn cast(ty: Type, t: Term) -> Self {
         Term::Cast(ty, Box::new(t))
     }
@@ -179,6 +184,18 @@ impl Term {
                     }
                     _ => Err(TranslateError::NotFunction(tp1, ty1, t1)),
                 }
+            }
+            Tm::Let(name, t1, t2) => {
+                let tp1 = t1.pos.clone();
+                let tp2 = t2.pos.clone();
+                let (t1, ty1) = Term::from_source(*t1, env)?;
+                let state = env.insert(name.clone(), ty1);
+                let (t2, ty2) = Term::from_source(*t2, env)?;
+                env.drop(name.clone(), state);
+                Ok((
+                    Term::r#let(name, Positional::new(tp1, t1), Positional::new(tp2, t2)),
+                    ty2,
+                ))
             }
             Tm::Lit(l) => {
                 let ty = l.type_of();

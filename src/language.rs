@@ -36,6 +36,7 @@ pub enum Term {
     Var(Name),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
+    Let(Name, PTerm, PTerm),
     Lit(Lit),
 }
 
@@ -73,6 +74,10 @@ impl Term {
 
     pub(crate) fn app(t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::App(Box::new(t1), Box::new(t2))
+    }
+
+    pub(crate) fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
+        Term::Let(name, Box::new(t1), Box::new(t2))
     }
 }
 

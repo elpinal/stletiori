@@ -30,6 +30,7 @@ pub enum Term {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
     App(BTerm, BTerm),
+    Let(BTerm, BTerm),
     Cast(Type, BTerm),
     Lit(Lit),
 }
@@ -37,6 +38,10 @@ pub enum Term {
 impl Term {
     fn app(t1: Term, t2: Term) -> Self {
         Term::App(Box::new(t1), Box::new(t2))
+    }
+
+    fn r#let(t1: Term, t2: Term) -> Self {
+        Term::Let(Box::new(t1), Box::new(t2))
     }
 }
 
@@ -89,6 +94,13 @@ impl Positional<Tm> {
                     Type::Arrow(ty11, _) => Err(TypeError::NotEqual(pos, *ty11, ty2)),
                     _ => Err(TypeError::NotFunction(tp1, ty1, t1.inner.clone())),
                 }
+            }
+            Let(_, ref t1, ref t2) => {
+                let (s1, ty1) = t1.type_of(ctx)?;
+                ctx.insert(ty1);
+                let (s2, ty2) = t2.type_of(ctx)?;
+                ctx.drop();
+                Ok((Term::r#let(s1, s2), ty2))
             }
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
@@ -217,6 +229,10 @@ impl Term {
                 t1.map(f, c);
                 t2.map(f, c);
             }
+            Let(ref mut t1, ref mut t2) => {
+                t1.map(f, c);
+                t2.map(f, c + 1);
+            }
             Cast(_, ref mut t) => t.map(f, c),
             Lit(_) => (),
         }
@@ -273,6 +289,11 @@ impl Term {
                 };
                 t.subst_top(&mut v2.into());
                 t.reduce()
+            }
+            Let(t1, mut t2) => {
+                let v1 = t1.reduce()?;
+                t2.subst_top(&mut v1.into());
+                t2.reduce()
             }
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();

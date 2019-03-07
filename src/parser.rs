@@ -33,6 +33,7 @@ enum TokenKind {
     RBrack,
     Colon,
     Fn,
+    Let,
 }
 
 #[derive(Debug)]
@@ -255,6 +256,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "bool" => TokenKind::Bool,
         "keyword" => TokenKind::KeywordType,
         "fn" => TokenKind::Fn,
+        "let" => TokenKind::Let,
         "true" => TokenKind::Lit(Lit::Bool(true)),
         "false" => TokenKind::Lit(Lit::Bool(false)),
         _ => TokenKind::Ident(s),
@@ -418,6 +420,16 @@ impl Parser {
                         let t = self.term()?;
                         let end = self.expect(TokenKind::RParen)?.pos;
                         Ok(Positional::new(start.to(end), Term::abs(name, ty, t)))
+                    }
+                    TokenKind::Let => {
+                        self.proceed();
+                        self.expect(TokenKind::LBrack)?;
+                        let name = self.name()?;
+                        let t1 = self.term()?;
+                        self.expect(TokenKind::RBrack)?;
+                        let t2 = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(start.to(end), Term::r#let(name, t1, t2)))
                     }
                     _ => {
                         let t1 = self.term()?;
