@@ -10,6 +10,7 @@ use std::vec::IntoIter;
 use failure::*;
 
 use crate::language::BaseType;
+use crate::language::Lit;
 use crate::language::Name;
 use crate::language::Term;
 use crate::language::Type;
@@ -19,7 +20,7 @@ use crate::position::Positional;
 
 #[derive(Clone, Debug, PartialEq)]
 enum TokenKind {
-    Keyword(String),
+    Lit(Lit),
     Unknown,
     Int,
     Bool,
@@ -153,7 +154,7 @@ impl Lexer {
                 }
                 let (s, end) = self.symbol()?;
                 Ok(Token {
-                    kind: TokenKind::Keyword(s),
+                    kind: TokenKind::Lit(Lit::Keyword(s)),
                     pos: Position::new(start, end),
                 })
             }
@@ -163,6 +164,7 @@ impl Lexer {
                 self.arrow(start)
             }
             ch if ch.is_ascii_alphabetic() => self.ident(),
+            ch if ch.is_ascii_digit() => self.int(),
             ch => Err(LexError::IllegalCharacter(self.get_point(), ch)),
         }
     }
@@ -209,6 +211,25 @@ impl Lexer {
         })
     }
 
+    fn int(&mut self) -> Res<Token> {
+        let start = self.get_point();
+        let mut end = start.clone();
+        let mut n = 0;
+        while let Ok(ch) = self.peek() {
+            if ch.is_ascii_digit() {
+                n = n * 10 + ch.to_digit(10).unwrap() as isize;
+            } else if ch != '_' {
+                break;
+            }
+            end = self.get_point();
+            self.proceed();
+        }
+        Ok(Token {
+            kind: TokenKind::Lit(Lit::Int(n)),
+            pos: Position::new(start, end),
+        })
+    }
+
     fn lex_all(&mut self) -> Res<Vec<Token>> {
         let mut v = Vec::new();
         loop {
@@ -234,6 +255,8 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "bool" => TokenKind::Bool,
         "keyword" => TokenKind::KeywordType,
         "fn" => TokenKind::Fn,
+        "true" => TokenKind::Lit(Lit::Bool(true)),
+        "false" => TokenKind::Lit(Lit::Bool(false)),
         _ => TokenKind::Ident(s),
     }
 }
@@ -384,6 +407,10 @@ impl Parser {
                         Ok(Positional::new(start.to(end), Term::app(t1, t2)))
                     }
                 }
+            }
+            TokenKind::Lit(ref l) => {
+                let l = l.clone();
+                self.proceeding(Positional::new(start, Term::Lit(l)))
             }
             _ => Err(ParseError::expected("term", token)),
         }
