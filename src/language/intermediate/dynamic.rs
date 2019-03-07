@@ -6,7 +6,7 @@ use failure::Fail;
 
 use super::Term as Tm;
 use super::Variable;
-use crate::language::BaseType;
+use crate::language::Lit;
 use crate::language::Type;
 use crate::position::Position;
 use crate::position::Positional;
@@ -30,8 +30,8 @@ pub enum Term {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
     App(BTerm, BTerm),
-    Keyword(String),
     Cast(Type, BTerm),
+    Lit(Lit),
 }
 
 impl Term {
@@ -90,7 +90,6 @@ impl Positional<Tm> {
                     _ => Err(TypeError::NotFunction(tp1, ty1, t1.inner.clone())),
                 }
             }
-            Keyword(ref s) => Ok((Term::Keyword(s.clone()), Type::Base(BaseType::Keyword))),
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
                 if ty0.is_consistent(ty) {
@@ -99,6 +98,7 @@ impl Positional<Tm> {
                     Err(TypeError::NotConsistent(pos, ty0, ty.clone()))
                 }
             }
+            Lit(ref l) => Ok((Term::Lit(l.clone()), l.type_of())),
         }
     }
 
@@ -139,7 +139,7 @@ impl Context {
 pub enum SValue {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
-    Keyword(String),
+    Lit(Lit),
 }
 
 #[derive(Debug)]
@@ -154,7 +154,7 @@ impl From<SValue> for Term {
         match sv {
             SValue::Var(v) => Term::Var(v),
             SValue::Abs(t) => Term::Abs(t),
-            SValue::Keyword(s) => Term::Keyword(s),
+            SValue::Lit(l) => Term::Lit(l),
         }
     }
 }
@@ -179,7 +179,7 @@ impl SValue {
         match *self {
             SValue::Var(ref v) => v.tag.clone(),
             SValue::Abs(ref t) => t.tag.clone(),
-            SValue::Keyword(_) => Type::Base(BaseType::Keyword),
+            SValue::Lit(ref l) => l.type_of(),
         }
     }
 }
@@ -217,8 +217,8 @@ impl Term {
                 t1.map(f, c);
                 t2.map(f, c);
             }
-            Keyword(_) => (),
             Cast(_, ref mut t) => t.map(f, c),
+            Lit(_) => (),
         }
     }
 
@@ -274,7 +274,6 @@ impl Term {
                 t.subst_top(&mut v2.into());
                 t.reduce()
             }
-            Keyword(s) => Ok(Value::SValue(SValue::Keyword(s))),
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();
                 let ty0 = v.type_of();
@@ -302,6 +301,7 @@ impl Term {
                     _ => panic!("unexpected error"),
                 }
             }
+            Lit(l) => Ok(Value::SValue(SValue::Lit(l))),
         }
     }
 }

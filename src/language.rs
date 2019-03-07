@@ -36,6 +36,11 @@ pub enum Term {
     Var(Name),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
+    Lit(Lit),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Lit {
     Keyword(String),
 }
 
@@ -66,5 +71,14 @@ impl Term {
 
     pub(crate) fn app(t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::App(Box::new(t1), Box::new(t2))
+    }
+}
+
+impl Lit {
+    fn type_of(&self) -> Type {
+        use Lit::*;
+        match *self {
+            Keyword(_) => Type::Base(BaseType::Keyword),
+        }
     }
 }

@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 
 use failure::Fail;
 
-use super::BaseType;
+use super::Lit;
 use super::Name;
 use super::Term as Tm;
 use super::Type;
@@ -24,8 +24,8 @@ pub enum Term {
     Var(Variable),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
-    Keyword(String),
     Cast(Type, Box<Term>),
+    Lit(Lit),
 }
 
 #[derive(Default)]
@@ -180,7 +180,10 @@ impl Term {
                     _ => Err(TranslateError::NotFunction(tp1, ty1, t1)),
                 }
             }
-            Tm::Keyword(s) => Ok((Keyword(s), Type::Base(BaseType::Keyword))),
+            Tm::Lit(l) => {
+                let ty = l.type_of();
+                Ok((Lit(l), ty))
+            }
         }
     }
 }
