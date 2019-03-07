@@ -63,7 +63,7 @@ where
         println!("{:?}", ty);
         return Ok(());
     }
-    let ty0 = t.typecheck()?;
+    let (et, ty0) = t.typecheck()?;
     if ty0 != ty {
         bail!(
             "{}:\n\
@@ -82,5 +82,7 @@ where
         println!("{:?}", ty0);
         return Ok(());
     }
+    let v = et.reduce()?;
+    println!("{:?}", v);
     Ok(())
 }

@@ -1,5 +1,7 @@
 //! The dynamic semantics.
 
+use std::convert::TryFrom;
+
 use failure::Fail;
 
 use super::Term as Tm;
@@ -9,7 +11,8 @@ use crate::language::Type;
 use crate::position::Position;
 use crate::position::Positional;
 
-struct Tagged<T> {
+#[derive(Clone, Debug)]
+pub struct Tagged<T> {
     tag: Type,
     inner: T,
 }
@@ -22,7 +25,8 @@ impl<T> Tagged<T> {
 
 type BTerm = Box<Term>;
 
-enum Term {
+#[derive(Clone, Debug)]
+pub enum Term {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
     App(BTerm, BTerm),
@@ -98,9 +102,8 @@ impl Positional<Tm> {
         }
     }
 
-    pub fn typecheck(&self) -> Result<Type, TypeError> {
-        let (_, ty) = self.type_of(&mut Context::default())?;
-        Ok(ty)
+    pub fn typecheck(&self) -> Result<(Term, Type), TypeError> {
+        self.type_of(&mut Context::default())
     }
 }
 
@@ -132,13 +135,173 @@ impl Context {
     }
 }
 
-enum SValue {
+#[derive(Debug)]
+pub enum SValue {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
+    Keyword(String),
 }
 
-enum Value {
+#[derive(Debug)]
+pub enum Value {
     SValue(SValue),
     /// Cast to unknown type.
     UCast(SValue),
+}
+
+impl From<SValue> for Term {
+    fn from(sv: SValue) -> Self {
+        match sv {
+            SValue::Var(v) => Term::Var(v),
+            SValue::Abs(t) => Term::Abs(t),
+            SValue::Keyword(s) => Term::Keyword(s),
+        }
+    }
+}
+
+impl From<Value> for Term {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::SValue(sv) => sv.into(),
+            Value::UCast(sv) => Term::Cast(Type::Unknown, Box::new(sv.into())),
+        }
+    }
+}
+
+impl From<SValue> for Value {
+    fn from(sv: SValue) -> Self {
+        Value::SValue(sv)
+    }
+}
+
+impl SValue {
+    fn type_of(&self) -> Type {
+        match *self {
+            SValue::Var(ref v) => v.tag.clone(),
+            SValue::Abs(ref t) => t.tag.clone(),
+            SValue::Keyword(_) => Type::Base(BaseType::Keyword),
+        }
+    }
+}
+
+impl Value {
+    fn unbox(self) -> SValue {
+        match self {
+            Value::SValue(sv) => sv,
+            Value::UCast(sv) => sv,
+        }
+    }
+
+    fn type_of(&self) -> Type {
+        match *self {
+            Value::SValue(ref sv) => sv.type_of(),
+            Value::UCast(_) => Type::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Fail, PartialEq)]
+#[fail(display = "{:?} could not cast to {:?}", _0, _1)]
+pub struct CastError(Type, Type);
+
+impl Term {
+    fn map<F>(&mut self, f: &F, c: usize)
+    where
+        F: Fn(usize, Tagged<Variable>) -> Term,
+    {
+        use Term::*;
+        match *self {
+            Var(ref v) => *self = f(c, v.clone()),
+            Abs(ref mut t) => t.inner.map(f, c + 1),
+            App(ref mut t1, ref mut t2) => {
+                t1.map(f, c);
+                t2.map(f, c);
+            }
+            Keyword(_) => (),
+            Cast(_, ref mut t) => t.map(f, c),
+        }
+    }
+
+    fn shift_above(&mut self, c: usize, d: isize) {
+        let f = |c: usize, v: Tagged<Variable>| {
+            if c <= v.inner.0 {
+                Term::Var(Tagged::new(
+                    v.tag,
+                    Variable(usize::try_from(isize::try_from(v.inner.0).unwrap() + d).unwrap()),
+                ))
+            } else {
+                Term::Var(v)
+            }
+        };
+        self.map(&f, c)
+    }
+
+    fn shift(&mut self, d: isize) {
+        self.shift_above(0, d);
+    }
+
+    fn subst(&mut self, j: usize, t: &Term) {
+        let f = |c: usize, v: Tagged<Variable>| {
+            if j + c == v.inner.0 {
+                let mut t = t.clone();
+                t.shift(isize::try_from(c).unwrap());
+                t
+            } else {
+                Term::Var(v)
+            }
+        };
+        self.map(&f, 0)
+    }
+
+    fn subst_top(&mut self, t: &mut Term) {
+        t.shift(1);
+        self.subst(0, t);
+        self.shift(-1);
+    }
+
+    pub fn reduce(self) -> Result<Value, CastError> {
+        use Term::*;
+        match self {
+            Var(_) => panic!("type error"),
+            Abs(t) => Ok(Value::SValue(SValue::Abs(t))),
+            App(t1, t2) => {
+                let v1 = t1.reduce()?;
+                let v2 = t2.reduce()?;
+                let mut t = match v1 {
+                    Value::SValue(SValue::Abs(t)) => t.inner,
+                    _ => panic!("type error: not function"),
+                };
+                t.subst_top(&mut v2.into());
+                t.reduce()
+            }
+            Keyword(s) => Ok(Value::SValue(SValue::Keyword(s))),
+            Cast(ty, t) => {
+                let v = t.reduce()?.unbox();
+                let ty0 = v.type_of();
+                let consistent = ty0.is_consistent(&ty);
+                match (ty, ty0) {
+                    (Type::Unknown, _) => Ok(Value::UCast(v)),
+                    (Type::Base(b1), Type::Base(b2)) if b1 == b2 => Ok(v.into()),
+                    (Type::Arrow(ty11, ty12), Type::Arrow(ty21, _)) if consistent => {
+                        // Assume `v` is closed.
+                        Ok(Value::SValue(SValue::Abs(Tagged::new(
+                            Type::Arrow(ty11.clone(), ty12.clone()),
+                            Box::new(Term::Cast(
+                                *ty12,
+                                Box::new(Term::app(
+                                    v.into(),
+                                    Term::Cast(
+                                        *ty21,
+                                        Box::new(Term::Var(Tagged::new(*ty11, Variable(0)))),
+                                    ),
+                                )),
+                            )),
+                        ))))
+                    }
+                    (ty, ty0) if !consistent => Err(CastError(ty0, ty)),
+                    _ => panic!("unexpected error"),
+                }
+            }
+        }
+    }
 }
