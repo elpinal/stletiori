@@ -268,13 +268,13 @@ struct Parser {
 #[derive(Debug, Fail, PartialEq)]
 enum ParseError {
     #[fail(display = "unexpected end of file")]
-    UnexpectedEOF,
+    EOF,
 
     #[fail(display = "{}: expected {}, but found {:?}", _0, _1, _2)]
     Expected(Position, String, TokenKind),
 
     #[fail(display = "expected {}, but found end of file", _0)]
-    ExpectedEOF(String),
+    UnexpectedEOF(String),
 
     #[fail(display = "{}: expected {:?}, but found {:?}", _0, _1, _2)]
     ExpectedToken(Position, TokenKind, TokenKind),
@@ -290,8 +290,8 @@ impl ParseError {
         ParseError::Expected(token.pos.clone(), s.to_string(), token.kind.clone())
     }
 
-    fn expected_eof(s: &str) -> Self {
-        ParseError::ExpectedEOF(s.to_string())
+    fn unexpected_eof(s: &str) -> Self {
+        ParseError::UnexpectedEOF(s.to_string())
     }
 
     fn expected_token(kind: TokenKind, token: Token) -> Self {
@@ -307,11 +307,11 @@ impl Parser {
     }
 
     fn peek(&mut self) -> ParseRes<&Token> {
-        self.src.peek().ok_or(ParseError::UnexpectedEOF)
+        self.src.peek().ok_or(ParseError::EOF)
     }
 
     fn next(&mut self) -> ParseRes<Token> {
-        self.src.next().ok_or(ParseError::UnexpectedEOF)
+        self.src.next().ok_or(ParseError::EOF)
     }
 
     fn proceed(&mut self) {
@@ -354,7 +354,9 @@ impl Parser {
     }
 
     fn type_atom(&mut self) -> ParseRes<Positional<Type>> {
-        let token = self.peek().map_err(|_| ParseError::expected_eof("type"))?;
+        let token = self
+            .peek()
+            .map_err(|_| ParseError::unexpected_eof("type"))?;
         let start = token.pos.clone();
         macro_rules! one_token {
             ($p:expr, $ty:expr) => {
@@ -402,7 +404,7 @@ impl Parser {
                         let name = self.name()?;
                         let token = self
                             .next()
-                            .map_err(|_| ParseError::expected_eof("colon or right bracket"))?;
+                            .map_err(|_| ParseError::unexpected_eof("colon or right bracket"))?;
                         let ty = match token.kind {
                             TokenKind::Colon => {
                                 let ty = self.r#type()?;
