@@ -393,9 +393,17 @@ impl Parser {
                         self.proceed();
                         self.expect(TokenKind::LBrack)?;
                         let name = self.name()?;
-                        self.expect(TokenKind::Colon)?;
-                        let ty = self.r#type()?;
-                        self.expect(TokenKind::RBrack)?;
+                        let token = self.next()?;
+                        let ty = match token.kind {
+                            TokenKind::Colon => {
+                                let ty = self.r#type()?;
+                                self.expect(TokenKind::RBrack)?;
+                                ty
+                            }
+                            // TODO: position.
+                            TokenKind::RBrack => Positional::new(token.pos, Type::Unknown),
+                            _ => Err(ParseError::expected("colon or right bracket", &token))?,
+                        };
                         let t = self.term()?;
                         let end = self.expect(TokenKind::RParen)?.pos;
                         Ok(Positional::new(start.to(end), Term::abs(name, ty, t)))
