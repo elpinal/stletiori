@@ -82,7 +82,9 @@ where
         println!("{:?}", ty0);
         return Ok(());
     }
-    let v = et.reduce()?;
+    let v = et
+        .reduce()
+        .with_context(|e| format!("{}: {}", "cast error".bright_red().bold(), e))?;
     println!("{:?}", v);
     Ok(())
 }
