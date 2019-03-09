@@ -7,9 +7,9 @@ use std::fmt;
 use std::fmt::Display;
 use std::iter::FromIterator;
 
-trait Node: Display {}
+pub(crate) trait Node: Display {}
 
-struct Element {
+pub(crate) struct Element {
     tag: String,
     attrs: BTreeMap<String, String>,
     children: Vec<Box<dyn Node>>,
@@ -20,7 +20,7 @@ struct VoidElement {
     attrs: BTreeMap<String, String>,
 }
 
-struct TextNode {
+pub(crate) struct TextNode {
     text: String,
 }
 
@@ -42,7 +42,7 @@ impl fmt::Display for Element {
 impl Node for Element {}
 
 impl Element {
-    fn new<S, A, C>(tag: S, attrs: A, children: C) -> Self
+    pub(crate) fn new<S, A, C>(tag: S, attrs: A, children: C) -> Self
     where
         S: Into<String>,
         A: IntoIterator<Item = (String, String)>,
@@ -106,7 +106,7 @@ impl fmt::Display for TextNode {
 impl Node for TextNode {}
 
 impl TextNode {
-    fn new<S>(text: S) -> Self
+    pub(crate) fn new<S>(text: S) -> Self
     where
         S: Into<String>,
     {

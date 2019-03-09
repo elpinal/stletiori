@@ -204,6 +204,15 @@ impl From<SValue> for Value {
     }
 }
 
+impl From<Value> for SValue {
+    fn from(v: Value) -> Self {
+        match v {
+            Value::SValue(sv) => sv,
+            Value::UCast(sv) => sv,
+        }
+    }
+}
+
 impl SValue {
     fn type_of(&self) -> Type {
         match *self {

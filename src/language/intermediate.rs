@@ -1,6 +1,6 @@
 //! The intermediate language.
 
-mod dynamic;
+pub(crate) mod dynamic;
 
 use std::collections::HashMap;
 use std::convert::TryFrom;
