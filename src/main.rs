@@ -30,6 +30,10 @@ struct Argument {
     #[structopt(short = "i", long = "typecheck-intermediate")]
     typecheck_intermediate: bool,
 
+    /// Stops after the reduction of an intermediate program.
+    #[structopt(short, long)]
+    reduce: bool,
+
     /// Input filename
     #[structopt(name = "filename", parse(from_os_str))]
     filename: PathBuf,
@@ -85,6 +89,11 @@ where
     let v = et
         .reduce()
         .with_context(|e| format!("{}: {}", "cast error".bright_red().bold(), e))?;
-    println!("{:?}", v);
+    if arg.reduce {
+        println!("{:?}", v);
+        return Ok(());
+    }
+    let node = v.to_html()?;
+    println!("{}", node);
     Ok(())
 }

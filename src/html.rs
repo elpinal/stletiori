@@ -7,7 +7,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::iter::FromIterator;
 
-pub(crate) trait Node: Display {}
+pub trait Node: Display {}
 
 pub(crate) struct Element {
     tag: String,
