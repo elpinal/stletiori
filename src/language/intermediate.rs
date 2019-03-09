@@ -219,9 +219,10 @@ impl Term {
                     .into_iter()
                     .map(|(k, v)| {
                         let kpos = k.pos.clone();
-                        let (t, ty) = Term::from_source(k, env)?;
+                        let (mut t, ty) = Term::from_source(k, env)?;
                         match ty {
                             Type::Base(BaseType::Keyword) => (),
+                            Type::Unknown => t = Term::cast(Type::Base(BaseType::Keyword), t),
                             _ => return Err(TranslateError::NotKeyword(kpos, ty, t)),
                         }
                         Ok((
