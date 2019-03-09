@@ -2,6 +2,7 @@
 
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::iter::FromIterator;
 use std::iter::Peekable;
@@ -31,6 +32,8 @@ enum TokenKind {
     RParen,
     LBrack,
     RBrack,
+    LBrace,
+    RBrace,
     Colon,
     Fn,
     Let,
@@ -151,6 +154,8 @@ impl Lexer {
             ')' => Ok(self.proceeding(one_character(TokenKind::RParen))),
             '[' => Ok(self.proceeding(one_character(TokenKind::LBrack))),
             ']' => Ok(self.proceeding(one_character(TokenKind::RBrack))),
+            '{' => Ok(self.proceeding(one_character(TokenKind::LBrace))),
+            '}' => Ok(self.proceeding(one_character(TokenKind::RBrace))),
             ':' => {
                 let start = self.get_point();
                 self.proceed();
@@ -310,6 +315,12 @@ enum ParseError {
 
     #[fail(display = "expected {:?}, but found end of file", _0)]
     ExpectedTokenEOF(TokenKind),
+
+    #[fail(
+        display = "{}: map must have even number of terms, but found {} terms",
+        _0, _1
+    )]
+    IllFormedMap(Position, usize),
 }
 
 type ParseRes<T> = Result<T, ParseError>;
@@ -474,6 +485,29 @@ impl Parser {
                 }
                 let end = self.expect(TokenKind::RBrack)?.pos;
                 Ok(Positional::new(start.to(end), Term::Vector(v)))
+            }
+            TokenKind::LBrace => {
+                self.proceed();
+                let mut m = BTreeMap::new();
+                while let Ok(t1) = self.term() {
+                    let token = self
+                        .src
+                        .peek()
+                        .ok_or_else(|| ParseError::unexpected_eof("term or right bracket"))?;
+                    match token.kind {
+                        TokenKind::RBrace => {
+                            return Err(ParseError::IllFormedMap(
+                                start.to(token.pos.clone()),
+                                m.len() * 2 + 1,
+                            ));
+                        }
+                        _ => (),
+                    }
+                    let t2 = self.term()?;
+                    m.insert(t1, t2);
+                }
+                let end = self.expect(TokenKind::RBrace)?.pos;
+                Ok(Positional::new(start.to(end), Term::Map(m)))
             }
             TokenKind::Lit(ref l) => {
                 let l = l.clone();

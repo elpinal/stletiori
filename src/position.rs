@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Point {
     line: usize,
     column: usize,
@@ -37,7 +37,7 @@ impl Point {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Position {
     start: Point,
     end: Point,
@@ -68,7 +68,7 @@ impl Position {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Positional<T> {
     pub(crate) pos: Position,
     pub(crate) inner: T,

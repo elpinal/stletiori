@@ -1,5 +1,6 @@
 //! The dynamic semantics.
 
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 use failure::Fail;
@@ -12,7 +13,7 @@ use crate::language::Type;
 use crate::position::Position;
 use crate::position::Positional;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tagged<T> {
     tag: Type,
     inner: T,
@@ -26,13 +27,14 @@ impl<T> Tagged<T> {
 
 type BTerm = Box<Term>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Term {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
     App(BTerm, BTerm),
     Let(BTerm, BTerm),
     Vector(Vec<Term>),
+    Map(BTreeMap<Term, Term>),
     Cast(Type, BTerm),
     Lit(Lit),
 }
@@ -46,11 +48,22 @@ impl Term {
         Term::Let(Box::new(t1), Box::new(t2))
     }
 
+    fn keyword(s: String) -> Self {
+        Term::Lit(Lit::Keyword(s))
+    }
+
     fn vector<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = Term>,
     {
         Term::Vector(iter.into_iter().collect())
+    }
+
+    fn sorted_map<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = (Term, Term)>,
+    {
+        Term::Map(iter.into_iter().collect())
     }
 }
 
@@ -65,6 +78,12 @@ pub enum TypeError {
     )]
     NotFunction(Position, Type, Tm),
 
+    #[fail(
+        display = "{}: not keyword type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotKeyword(Position, Type, Tm),
+
     #[fail(display = "{}: {:?} is not equal to {:?}", _0, _1, _2)]
     NotEqual(Position, Type, Type),
 
@@ -75,6 +94,15 @@ pub enum TypeError {
 impl From<ContextError> for TypeError {
     fn from(e: ContextError) -> Self {
         TypeError::Context(e)
+    }
+}
+
+impl Type {
+    fn expect_keyword(&self, pos: Position, t: Tm) -> Result<(), TypeError> {
+        match *self {
+            Type::Base(BaseType::Keyword) => Ok(()),
+            _ => Err(TypeError::NotKeyword(pos, self.clone(), t)),
+        }
     }
 }
 
@@ -117,6 +145,17 @@ impl Positional<Tm> {
                     .map(|t| Ok(t.type_of(ctx)?.0))
                     .collect::<Result<_, TypeError>>()?;
                 Ok((Term::Vector(xs), Type::Base(BaseType::Vector)))
+            }
+            Map(ref m) => {
+                let xs = m
+                    .iter()
+                    .map(|(k, v)| {
+                        let (t, ty) = k.type_of(ctx)?;
+                        ty.expect_keyword(k.pos.clone(), k.inner.clone())?;
+                        Ok((t, v.type_of(ctx)?.0))
+                    })
+                    .collect::<Result<_, TypeError>>()?;
+                Ok((Term::Map(xs), Type::Base(BaseType::Map)))
             }
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
@@ -168,6 +207,7 @@ pub enum SValue {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
     Vector(Vec<Value>),
+    Map(BTreeMap<String, Value>),
     Lit(Lit),
 }
 
@@ -184,6 +224,10 @@ impl From<SValue> for Term {
             SValue::Var(v) => Term::Var(v),
             SValue::Abs(t) => Term::Abs(t),
             SValue::Vector(t) => Term::vector(t.into_iter().map(Term::from)),
+            SValue::Map(m) => Term::sorted_map(
+                m.into_iter()
+                    .map(|(k, v)| (Term::keyword(k), Term::from(v))),
+            ),
             SValue::Lit(l) => Term::Lit(l),
         }
     }
@@ -219,6 +263,7 @@ impl SValue {
             SValue::Var(ref v) => v.tag.clone(),
             SValue::Abs(ref t) => t.tag.clone(),
             SValue::Vector(_) => Type::Base(BaseType::Vector),
+            SValue::Map(_) => Type::Base(BaseType::Map),
             SValue::Lit(ref l) => l.type_of(),
         }
     }
@@ -236,6 +281,13 @@ impl Value {
         match *self {
             Value::SValue(ref sv) => sv.type_of(),
             Value::UCast(_) => Type::Unknown,
+        }
+    }
+
+    fn get_keyword(self) -> String {
+        match self {
+            Value::SValue(SValue::Lit(Lit::Keyword(s))) => s,
+            _ => panic!("not keyword: {:?}", self),
         }
     }
 }
@@ -262,6 +314,15 @@ impl Term {
                 t2.map(f, c + 1);
             }
             Vector(ref mut v) => v.iter_mut().for_each(|t| t.map(f, c)),
+            Map(ref m) => {
+                let mut m1 = BTreeMap::new();
+                for (mut k, mut v) in m.iter().map(|(k, v)| (k.clone(), v.clone())) {
+                    k.map(f, c);
+                    v.map(f, c);
+                    m1.insert(k, v);
+                }
+                *self = Term::Map(m1);
+            }
             Cast(_, ref mut t) => t.map(f, c),
             Lit(_) => (),
         }
@@ -328,6 +389,11 @@ impl Term {
                 v.into_iter()
                     .map(|t| (t.reduce()))
                     .collect::<Result<Vec<_>, _>>()?,
+            ))),
+            Map(m) => Ok(Value::SValue(SValue::Map(
+                m.into_iter()
+                    .map(|(t1, t2)| Ok((t1.reduce()?.get_keyword(), t2.reduce()?)))
+                    .collect::<Result<BTreeMap<_, _>, _>>()?,
             ))),
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();

@@ -2,6 +2,7 @@
 
 pub(crate) mod dynamic;
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
@@ -17,16 +18,17 @@ use crate::position::Positional;
 
 type PTerm = Box<Positional<Term>>;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Variable(usize);
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Term {
     Var(Variable),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
     Let(Name, PTerm, PTerm),
     Vector(Vec<Positional<Term>>),
+    Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Cast(Type, Box<Term>),
     Lit(Lit),
 }
@@ -94,6 +96,12 @@ pub enum TranslateError {
         _0, _1, _2
     )]
     NotFunction(Position, Type, Term),
+
+    #[fail(
+        display = "{}: not keyword type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotKeyword(Position, Type, Term),
 
     #[fail(display = "{}: inconsistent types: {:?} and {:?}", _0, _1, _2)]
     NotConsistent(Position, Type, Type),
@@ -205,6 +213,24 @@ impl Term {
                     .map(|t| Ok(Positional::new(t.pos.clone(), Term::from_source(t, env)?.0)))
                     .collect::<Result<_, TranslateError>>()?;
                 Ok((Term::Vector(v), Type::Base(BaseType::Vector)))
+            }
+            Tm::Map(m) => {
+                let m = m
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let kpos = k.pos.clone();
+                        let (t, ty) = Term::from_source(k, env)?;
+                        match ty {
+                            Type::Base(BaseType::Keyword) => (),
+                            _ => return Err(TranslateError::NotKeyword(kpos, ty, t)),
+                        }
+                        Ok((
+                            Positional::new(kpos, t),
+                            Positional::new(v.pos.clone(), Term::from_source(v, env)?.0),
+                        ))
+                    })
+                    .collect::<Result<_, TranslateError>>()?;
+                Ok((Term::Map(m), Type::Base(BaseType::Map)))
             }
             Tm::Lit(l) => {
                 let ty = l.type_of();

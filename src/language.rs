@@ -2,11 +2,13 @@
 
 #![allow(dead_code)]
 
+use std::collections::BTreeMap;
+
 pub mod intermediate;
 
 use crate::position::Positional;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Name(String);
 
 impl From<String> for Name {
@@ -15,16 +17,17 @@ impl From<String> for Name {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BaseType {
     Int,
     Bool,
     Keyword,
     Vector,
+    Map,
     String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Type {
     Base(BaseType),
     Unknown,
@@ -33,17 +36,18 @@ pub enum Type {
 
 type PTerm = Box<Positional<Term>>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Term {
     Var(Name),
     Abs(Name, Positional<Type>, PTerm),
     App(PTerm, PTerm),
     Let(Name, PTerm, PTerm),
     Vector(Vec<Positional<Term>>),
+    Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Lit(Lit),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Lit {
     Keyword(String),
     Int(isize),
