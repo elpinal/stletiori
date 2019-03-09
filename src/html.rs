@@ -15,7 +15,7 @@ pub(crate) struct Element {
     children: Vec<Box<dyn Node>>,
 }
 
-struct VoidElement {
+pub(crate) struct VoidElement {
     tag: String,
     attrs: BTreeMap<String, String>,
 }
@@ -85,7 +85,7 @@ impl fmt::Display for VoidElement {
 impl Node for VoidElement {}
 
 impl VoidElement {
-    fn new<S, A>(tag: S, attrs: A) -> Self
+    pub(crate) fn new<S, A>(tag: S, attrs: A) -> Self
     where
         S: Into<String>,
         A: IntoIterator<Item = (String, String)>,

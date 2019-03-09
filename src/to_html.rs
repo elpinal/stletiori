@@ -14,9 +14,13 @@ impl Value {
                 let mut iter = v.into_iter();
                 let tag = SValue::from(iter.next().ok_or_else(|| err_msg("empty vector"))?)
                     .get_keyword()?;
-                let children: Vec<Box<dyn Node>> =
-                    iter.map(|v| v.to_html()).collect::<Result<_, _>>()?;
-                Ok(Box::new(Element::new(tag, None, children)))
+                if is_void_element(&tag) {
+                    Ok(Box::new(VoidElement::new(tag, None)))
+                } else {
+                    let children: Vec<Box<dyn Node>> =
+                        iter.map(|v| v.to_html()).collect::<Result<_, _>>()?;
+                    Ok(Box::new(Element::new(tag, None, children)))
+                }
             }
             SValue::Lit(Lit::String(s)) => Ok(Box::new(TextNode::new(s))),
             _ => unimplemented!(),
@@ -30,5 +34,13 @@ impl SValue {
             SValue::Lit(Lit::Keyword(s)) => Ok(s),
             _ => bail!("not keyword: {:?}", self),
         }
+    }
+}
+
+fn is_void_element(s: &str) -> bool {
+    match s {
+        "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta"
+        | "param" | "source" | "track" | "wbr" => true,
+        _ => false,
     }
 }
