@@ -287,6 +287,7 @@ impl Value {
     fn get_keyword(self) -> String {
         match self {
             Value::SValue(SValue::Lit(Lit::Keyword(s))) => s,
+            // TODO: UCast?
             _ => panic!("not keyword: {:?}", self),
         }
     }
