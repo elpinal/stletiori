@@ -9,6 +9,8 @@ use std::iter::FromIterator;
 
 pub trait Node: Display {}
 
+pub struct HtmlDocument(Box<dyn Node>);
+
 pub(crate) struct Element {
     tag: String,
     attrs: BTreeMap<String, String>,
@@ -22,6 +24,20 @@ pub(crate) struct VoidElement {
 
 pub(crate) struct TextNode {
     text: String,
+}
+
+impl fmt::Display for HtmlDocument {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<!DOCTYPE html>{}", self.0)
+    }
+}
+
+impl Node for HtmlDocument {}
+
+impl HtmlDocument {
+    pub fn new(node: Box<dyn Node>) -> Self {
+        HtmlDocument(node)
+    }
 }
 
 impl fmt::Display for Element {

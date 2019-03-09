@@ -12,6 +12,7 @@ use failure::*;
 
 use colored::*;
 
+use stletiori::html;
 use stletiori::parser::parse;
 
 /// Stletiori: generating HTML.
@@ -94,6 +95,6 @@ where
         return Ok(());
     }
     let node = v.into_html()?;
-    println!("{}", node);
+    println!("{}", html::HtmlDocument::new(node));
     Ok(())
 }
