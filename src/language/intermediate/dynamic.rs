@@ -294,7 +294,7 @@ impl Value {
 }
 
 #[derive(Debug, Fail, PartialEq)]
-#[fail(display = "{:?} could not cast to {:?}", _0, _1)]
+#[fail(display = "{:?} could not be cast to {:?}", _0, _1)]
 pub struct CastError(Type, Type);
 
 impl Term {
