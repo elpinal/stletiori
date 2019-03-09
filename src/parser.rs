@@ -37,7 +37,7 @@ enum TokenKind {
     DoubleQuote,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Token {
     kind: TokenKind,
     pos: Position,
@@ -315,8 +315,8 @@ enum ParseError {
 type ParseRes<T> = Result<T, ParseError>;
 
 impl ParseError {
-    fn expected(s: &str, token: &Token) -> Self {
-        ParseError::Expected(token.pos.clone(), s.to_string(), token.kind.clone())
+    fn expected(s: &str, token: Token) -> Self {
+        ParseError::Expected(token.pos, s.to_string(), token.kind)
     }
 
     fn unexpected_eof(s: &str) -> Self {
@@ -404,7 +404,7 @@ impl Parser {
                 let end = self.expect(TokenKind::RParen)?.pos;
                 Ok(Positional::new(start.to(end), ty))
             }
-            _ => Err(ParseError::expected("type", token)),
+            _ => Err(ParseError::expected("type", token.clone())),
         }
     }
 
@@ -412,7 +412,7 @@ impl Parser {
         let token = self.next()?;
         match token.kind {
             TokenKind::Ident(s) => Ok(Name::from(s)),
-            _ => Err(ParseError::expected("name", &token)),
+            _ => Err(ParseError::expected("name", token)),
         }
     }
 
@@ -442,7 +442,7 @@ impl Parser {
                             }
                             // TODO: position.
                             TokenKind::RBrack => Positional::new(token.pos, Type::Unknown),
-                            _ => Err(ParseError::expected("colon or right bracket", &token))?,
+                            _ => Err(ParseError::expected("colon or right bracket", token))?,
                         };
                         let t = self.term()?;
                         let end = self.expect(TokenKind::RParen)?.pos;
@@ -479,7 +479,7 @@ impl Parser {
                 let l = l.clone();
                 self.proceeding(Positional::new(start, Term::Lit(l)))
             }
-            _ => Err(ParseError::expected("term", token)),
+            _ => Err(ParseError::expected("term", token.clone())),
         }
     }
 }
