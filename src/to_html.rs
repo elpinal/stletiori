@@ -7,7 +7,7 @@ use crate::language::intermediate::dynamic::*;
 use crate::language::Lit;
 
 impl Value {
-    pub fn to_html(self) -> Fallible<Box<dyn Node>> {
+    pub fn into_html(self) -> Fallible<Box<dyn Node>> {
         let sv = SValue::from(self);
         match sv {
             SValue::Vector(v) => {
@@ -18,7 +18,7 @@ impl Value {
                     Ok(Box::new(VoidElement::new(tag, None)))
                 } else {
                     let children: Vec<Box<dyn Node>> =
-                        iter.map(|v| v.to_html()).collect::<Result<_, _>>()?;
+                        iter.map(|v| v.into_html()).collect::<Result<_, _>>()?;
                     Ok(Box::new(Element::new(tag, None, children)))
                 }
             }

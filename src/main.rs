@@ -93,7 +93,7 @@ where
         println!("{:?}", v);
         return Ok(());
     }
-    let node = v.to_html()?;
+    let node = v.into_html()?;
     println!("{}", node);
     Ok(())
 }
