@@ -35,6 +35,10 @@ struct Argument {
     #[structopt(short, long)]
     reduce: bool,
 
+    /// Output filename.
+    #[structopt(short, long = "output", parse(from_os_str))]
+    output_filename: Option<PathBuf>,
+
     /// Input filename
     #[structopt(name = "filename", parse(from_os_str))]
     filename: PathBuf,
@@ -94,7 +98,11 @@ where
         println!("{:?}", v);
         return Ok(());
     }
-    let node = v.into_html()?;
-    println!("{}", html::HtmlDocument::new(node));
+    let doc = html::HtmlDocument::new(v.into_html()?);
+    if let Some(output) = arg.output_filename {
+        std::fs::write(output, doc.to_string())?;
+    } else {
+        println!("{}", doc);
+    }
     Ok(())
 }
