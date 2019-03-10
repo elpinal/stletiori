@@ -73,6 +73,9 @@ enum LexError {
 
     #[fail(display = "non-terminated string: it starts at {}", _0)]
     NonTerminatedString(Point),
+
+    #[fail(display = "{}: invalid escaped character: {}", _0, _1)]
+    InvalidEscapedCharacter(Point, Found<char>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -258,12 +261,44 @@ impl Lexer {
                         pos: Position::new(start, end),
                     });
                 }
-                v.push(ch);
                 self.proceed();
+                match ch {
+                    '\\' => self.escaped_char(&mut v)?,
+                    _ => v.push(ch),
+                }
             } else {
                 return Err(LexError::NonTerminatedString(start));
             }
         }
+    }
+
+    fn escaped_char(&mut self, v: &mut Vec<char>) -> Res<()> {
+        match self
+            .peek()
+            .map_err(|_| LexError::InvalidEscapedCharacter(self.get_point(), Found::EOF))?
+        {
+            '\n' => {
+                self.proceed();
+                while self.peek_satisfy(|&ch| ch == ' ') {
+                    self.proceed();
+                }
+            }
+            'n' => {
+                v.push('\n');
+                self.proceed();
+            }
+            '"' => {
+                v.push('"');
+                self.proceed();
+            }
+            ch => {
+                return Err(LexError::InvalidEscapedCharacter(
+                    self.get_point(),
+                    Found::Found(ch),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn lex_all(&mut self) -> Res<Vec<Token>> {
