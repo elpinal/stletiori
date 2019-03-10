@@ -27,15 +27,15 @@ struct Argument {
     #[structopt(short, long)]
     translate: bool,
 
-    /// Stops after type checking a program in the intermediate language.
+    /// Stops after type checking a program in the intermediate language
     #[structopt(short = "i", long = "typecheck-intermediate")]
     typecheck_intermediate: bool,
 
-    /// Stops after the reduction of an intermediate program.
+    /// Stops after the reduction of an intermediate program
     #[structopt(short, long)]
     reduce: bool,
 
-    /// Output filename.
+    /// Output filename
     #[structopt(short, long = "output", parse(from_os_str))]
     output_filename: Option<PathBuf>,
 
