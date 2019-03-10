@@ -503,14 +503,11 @@ impl Parser {
                         .src
                         .peek()
                         .ok_or_else(|| ParseError::unexpected_eof("term or right bracket"))?;
-                    match token.kind {
-                        TokenKind::RBrace => {
-                            return Err(ParseError::IllFormedMap(
-                                start.to(token.pos.clone()),
-                                m.len() * 2 + 1,
-                            ));
-                        }
-                        _ => (),
+                    if let TokenKind::RBrace = token.kind {
+                        return Err(ParseError::IllFormedMap(
+                            start.to(token.pos.clone()),
+                            m.len() * 2 + 1,
+                        ));
                     }
                     let t2 = self.term()?;
                     m.insert(t1, t2);
