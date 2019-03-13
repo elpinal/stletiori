@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 pub mod intermediate;
 
+use crate::position::Position;
 use crate::position::Positional;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -48,6 +49,7 @@ pub enum Term {
     Option(Option<PTerm>),
     Get(String, PTerm),
     MapOr(PTerm, PTerm, PTerm),
+    Panic(Position, String),
     Lit(Lit),
 }
 

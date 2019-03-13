@@ -93,7 +93,7 @@ where
     }
     let v = et
         .reduce()
-        .with_context(|e| format!("{}: {}", "cast error".bright_red().bold(), e))?;
+        .with_context(|e| format!("{}: {}", "reduction error".bright_red().bold(), e))?;
     if arg.reduce {
         println!("{:?}", v);
         return Ok(());

@@ -38,6 +38,7 @@ pub enum Term {
     Option(Option<BTerm>),
     Get(String, BTerm),
     MapOr(BTerm, BTerm, BTerm),
+    Panic(Position, String),
     Cast(Type, BTerm),
     Lit(Lit),
 }
@@ -207,6 +208,7 @@ impl Positional<Tm> {
                     _ => Err(TypeError::NotFunction(tp2, ty2, t2.inner.clone())),
                 }
             }
+            Panic(ref pos, ref s) => Ok((Term::Panic(pos.clone(), s.clone()), Type::Unknown)),
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
                 if ty0.is_consistent(ty) {
@@ -353,8 +355,13 @@ impl Value {
 }
 
 #[derive(Debug, Fail, PartialEq)]
-#[fail(display = "{:?} could not be cast to {:?}", _0, _1)]
-pub struct CastError(Type, Type);
+pub enum ReductionError {
+    #[fail(display = "{:?} could not be cast to {:?}", _0, _1)]
+    Cast(Type, Type),
+
+    #[fail(display = "{}: panic: {}", _0, _1)]
+    Panic(Position, String),
+}
 
 impl Term {
     fn map_or(t1: Term, t2: Term, t3: Term) -> Self {
@@ -401,7 +408,7 @@ impl Term {
                 t3.map(f, c);
             }
             Cast(_, ref mut t) => t.map(f, c),
-            Lit(_) => (),
+            Lit(_) | Panic(..) => (),
         }
     }
 
@@ -442,7 +449,7 @@ impl Term {
         self.shift(-1);
     }
 
-    pub fn reduce(self) -> Result<Value, CastError> {
+    pub fn reduce(self) -> Result<Value, ReductionError> {
         use Term::*;
         match self {
             Var(_) => panic!("type error"),
@@ -507,6 +514,7 @@ impl Term {
                     _ => panic!("type error: not option"),
                 }
             }
+            Panic(pos, s) => Err(ReductionError::Panic(pos, s)),
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();
                 let ty0 = v.type_of();
@@ -544,7 +552,7 @@ impl Term {
                         );
                         t.reduce()
                     }
-                    (ty, ty0) if !consistent => Err(CastError(ty0, ty)),
+                    (ty, ty0) if !consistent => Err(ReductionError::Cast(ty0, ty)),
                     _ => panic!("unexpected error"),
                 }
             }

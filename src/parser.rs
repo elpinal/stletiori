@@ -41,6 +41,7 @@ enum TokenKind {
     Colon,
     Fn,
     Let,
+    Panic,
     DoubleQuote,
     None,
     Some,
@@ -335,6 +336,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "string" => TokenKind::String,
         "fn" => TokenKind::Fn,
         "let" => TokenKind::Let,
+        "panic" => TokenKind::Panic,
         "true" => TokenKind::Lit(Lit::Bool(true)),
         "false" => TokenKind::Lit(Lit::Bool(false)),
         "map-or" => TokenKind::MapOr,
@@ -493,6 +495,14 @@ impl Parser {
         }
     }
 
+    fn string(&mut self) -> ParseRes<String> {
+        let token = self.next()?;
+        match token.kind {
+            TokenKind::Lit(Lit::String(s)) => Ok(s),
+            _ => Err(ParseError::expected("string literal", token)),
+        }
+    }
+
     fn term(&mut self) -> ParseRes<Positional<Term>> {
         let token = self.peek()?;
         let start = token.pos.clone();
@@ -534,6 +544,13 @@ impl Parser {
                         let t2 = self.term()?;
                         let end = self.expect(TokenKind::RParen)?.pos;
                         Ok(Positional::new(start.to(end), Term::r#let(name, t1, t2)))
+                    }
+                    TokenKind::Panic => {
+                        self.proceed();
+                        let s = self.string()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        let pos = start.to(end);
+                        Ok(Positional::new(pos.clone(), Term::Panic(pos, s)))
                     }
                     TokenKind::Some => {
                         self.proceed();
