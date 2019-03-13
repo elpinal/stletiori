@@ -31,6 +31,7 @@ pub enum Term {
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
     Get(String, PTerm),
+    MapOr(PTerm, PTerm, PTerm),
     Cast(Type, Box<Term>),
     Lit(Lit),
 }
@@ -111,6 +112,12 @@ pub enum TranslateError {
     )]
     NotMap(Position, Type, Term),
 
+    #[fail(
+        display = "{}: not option type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotOption(Position, Type, Term),
+
     #[fail(display = "{}: inconsistent types: {:?} and {:?}", _0, _1, _2)]
     NotConsistent(Position, Type, Type),
 }
@@ -143,6 +150,10 @@ impl Term {
 
     fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::Let(name, Box::new(t1), Box::new(t2))
+    }
+
+    fn map_or(t1: Positional<Term>, t2: Positional<Term>, t3: Positional<Term>) -> Self {
+        Term::MapOr(Box::new(t1), Box::new(t2), Box::new(t3))
     }
 
     fn cast(ty: Type, t: Term) -> Self {
@@ -253,6 +264,52 @@ impl Term {
                     Ok((Term::Option(None), Type::option(Type::Unknown)))
                 }
             }
+            Tm::MapOr(t1, t2, t3) => {
+                let tp1 = t1.pos.clone();
+                let tp2 = t2.pos.clone();
+                let tp3 = t3.pos.clone();
+                let (t1, ty1) = Term::from_source(*t1, env)?;
+                let (t2, ty2) = Term::from_source(*t2, env)?;
+                let (t3, ty3) = Term::from_source(*t3, env)?;
+                let (t3, ty3_inner) = match ty3 {
+                    Type::Unknown => (Term::cast(Type::option(Type::Unknown), t3), Type::Unknown),
+                    Type::Option(ty) => (t3, *ty),
+                    _ => Err(TranslateError::NotOption(tp3.clone(), ty3.clone(), t3))?,
+                };
+                match ty2 {
+                    Type::Unknown => Ok((
+                        Term::map_or(
+                            Positional::new(tp1, t1),
+                            Positional::new(
+                                tp2,
+                                Term::cast(Type::arrow(ty3_inner, ty1.clone()), t2),
+                            ),
+                            Positional::new(tp3, t3),
+                        ),
+                        ty1,
+                    )),
+                    Type::Arrow(ty21, ty22) => {
+                        if !ty1.is_consistent(&ty22) {
+                            return Err(TranslateError::NotConsistent(pos, ty1, *ty22));
+                        }
+                        if !ty21.is_consistent(&ty3_inner) {
+                            return Err(TranslateError::NotConsistent(pos, *ty21, ty3_inner));
+                        }
+                        Ok((
+                            Term::map_or(
+                                Positional::new(tp1, t1),
+                                Positional::new(
+                                    tp2,
+                                    Term::cast(Type::arrow(ty3_inner, ty1.clone()), t2),
+                                ),
+                                Positional::new(tp3, t3),
+                            ),
+                            ty1,
+                        ))
+                    }
+                    _ => Err(TranslateError::NotFunction(tp1, ty1, t1)),
+                }
+            }
             Tm::Get(s, t) => {
                 let pos = t.pos.clone();
                 let (t, ty) = Term::from_source(*t, env)?;
@@ -261,6 +318,7 @@ impl Term {
                         Term::Get(s, Box::new(Positional::new(pos, t))),
                         Type::Unknown,
                     )),
+                    // TODO: unknown type?
                     _ => Err(TranslateError::NotMap(pos, ty, t)),
                 }
             }

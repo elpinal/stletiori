@@ -47,6 +47,7 @@ pub enum Term {
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
     Get(String, PTerm),
+    MapOr(PTerm, PTerm, PTerm),
     Lit(Lit),
 }
 
@@ -94,6 +95,10 @@ impl Term {
 
     pub(crate) fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::Let(name, Box::new(t1), Box::new(t2))
+    }
+
+    pub(crate) fn map_or(t1: Positional<Term>, t2: Positional<Term>, t3: Positional<Term>) -> Self {
+        Term::MapOr(Box::new(t1), Box::new(t2), Box::new(t3))
     }
 }
 

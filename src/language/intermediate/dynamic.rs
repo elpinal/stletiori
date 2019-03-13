@@ -93,6 +93,12 @@ pub enum TypeError {
     )]
     NotMap(Position, Type, Tm),
 
+    #[fail(
+        display = "{}: not option type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotOption(Position, Type, Tm),
+
     #[fail(display = "{}: {:?} is not equal to {:?}", _0, _1, _2)]
     NotEqual(Position, Type, Type),
 
@@ -181,6 +187,24 @@ impl Positional<Tm> {
                         Ok((Term::Get(s.clone(), Box::new(t0)), Type::Unknown))
                     }
                     _ => Err(TypeError::NotMap(t.pos.clone(), ty, t.inner.clone())),
+                }
+            }
+            MapOr(ref t1, ref t2, ref t3) => {
+                let tp2 = t2.pos.clone();
+                let tp3 = t3.pos.clone();
+                let (s1, ty1) = t1.type_of(ctx)?;
+                let (s2, ty2) = t2.type_of(ctx)?;
+                let (s3, ty3) = t3.type_of(ctx)?;
+                match ty2 {
+                    Type::Arrow(ty21, ty22) if ty1 == *ty22 => match ty3 {
+                        Type::Option(ty3_inner) if ty21 == ty3_inner => {
+                            Ok((Term::map_or(s1, s2, s3), ty1))
+                        }
+                        Type::Option(ty3_inner) => Err(TypeError::NotEqual(pos, *ty21, *ty3_inner)),
+                        _ => Err(TypeError::NotOption(tp3, ty3, t3.inner.clone())),
+                    },
+                    Type::Arrow(ty21, _) => Err(TypeError::NotEqual(pos, ty1, *ty21)),
+                    _ => Err(TypeError::NotFunction(tp2, ty2, t2.inner.clone())),
                 }
             }
             Cast(ref ty, ref t) => {

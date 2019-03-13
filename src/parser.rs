@@ -44,6 +44,7 @@ enum TokenKind {
     DoubleQuote,
     None,
     Some,
+    MapOr,
 }
 
 #[derive(Clone, Debug)]
@@ -336,6 +337,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "let" => TokenKind::Let,
         "true" => TokenKind::Lit(Lit::Bool(true)),
         "false" => TokenKind::Lit(Lit::Bool(false)),
+        "map-or" => TokenKind::MapOr,
         "None" => TokenKind::None,
         "Some" => TokenKind::Some,
         _ => TokenKind::Ident(s),
@@ -548,6 +550,14 @@ impl Parser {
                         let t = self.term()?;
                         let end = self.expect(TokenKind::RParen)?.pos;
                         Ok(Positional::new(start.to(end), Term::Get(s, Box::new(t))))
+                    }
+                    TokenKind::MapOr => {
+                        self.proceed();
+                        let t1 = self.term()?;
+                        let t2 = self.term()?;
+                        let t3 = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(start.to(end), Term::map_or(t1, t2, t3)))
                     }
                     _ => {
                         let t1 = self.term()?;
