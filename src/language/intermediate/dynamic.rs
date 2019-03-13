@@ -449,6 +449,9 @@ impl Term {
                             )),
                         ))))
                     }
+                    (Type::Option(ty1), Type::Option(ty2)) if consistent => {
+                        unimplemented!("{:?} {:?}", ty1, ty2);
+                    }
                     (ty, ty0) if !consistent => Err(CastError(ty0, ty)),
                     _ => panic!("unexpected error"),
                 }

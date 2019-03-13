@@ -28,6 +28,7 @@ enum TokenKind {
     KeywordType,
     Vector,
     Map,
+    Option,
     String,
     Arrow,
     Ident(String),
@@ -329,6 +330,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "keyword" => TokenKind::KeywordType,
         "vector" => TokenKind::Vector,
         "map" => TokenKind::Map,
+        "option" => TokenKind::Option,
         "string" => TokenKind::String,
         "fn" => TokenKind::Fn,
         "let" => TokenKind::Let,
@@ -424,7 +426,7 @@ impl Parser {
     }
 
     fn r#type(&mut self) -> ParseRes<Positional<Type>> {
-        let ty = self.type_atom()?;
+        let ty = self.type_factor()?;
         match self.peek().map(|t| &t.kind) {
             Ok(&TokenKind::Arrow) => {
                 self.proceed();
@@ -436,6 +438,20 @@ impl Parser {
             }
             _ => Ok(ty),
         }
+    }
+
+    fn type_factor(&mut self) -> ParseRes<Positional<Type>> {
+        let mut ty = self.type_atom()?;
+        while let Some(token) = self.src.peek() {
+            match token.kind {
+                TokenKind::Option => {
+                    self.proceed();
+                    ty = Positional::new(ty.pos, Type::option(ty.inner));
+                }
+                _ => break,
+            }
+        }
+        Ok(ty)
     }
 
     fn type_atom(&mut self) -> ParseRes<Positional<Type>> {

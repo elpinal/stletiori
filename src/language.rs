@@ -62,7 +62,7 @@ impl Type {
         Type::Arrow(Box::new(ty1), Box::new(ty2))
     }
 
-    fn option(ty: Type) -> Self {
+    pub(crate) fn option(ty: Type) -> Self {
         Type::Option(Box::new(ty))
     }
 
@@ -76,6 +76,7 @@ impl Type {
             (Arrow(ty11, ty12), Arrow(ty21, ty22)) => {
                 ty11.is_consistent(ty21) && ty12.is_consistent(ty22)
             }
+            (Option(ty1), Option(ty2)) => ty1.is_consistent(ty2),
             _ => false,
         }
     }
