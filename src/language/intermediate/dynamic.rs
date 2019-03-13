@@ -36,6 +36,7 @@ pub enum Term {
     Vector(Vec<Term>),
     Map(BTreeMap<Term, Term>),
     Option(Option<BTerm>),
+    MapOr(BTerm, BTerm, BTerm),
     Cast(Type, BTerm),
     Lit(Lit),
 }
@@ -316,6 +317,10 @@ impl Value {
 pub struct CastError(Type, Type);
 
 impl Term {
+    fn map_or(t1: Term, t2: Term, t3: Term) -> Self {
+        Term::MapOr(Box::new(t1), Box::new(t2), Box::new(t3))
+    }
+
     fn map<F>(&mut self, f: &F, c: usize)
     where
         F: Fn(usize, Tagged<Variable>) -> Term,
@@ -346,6 +351,11 @@ impl Term {
                 if let Some(x) = o.as_mut() {
                     x.map(f, c);
                 }
+            }
+            MapOr(ref mut t1, ref mut t2, ref mut t3) => {
+                t1.map(f, c);
+                t2.map(f, c);
+                t3.map(f, c);
             }
             Cast(_, ref mut t) => t.map(f, c),
             Lit(_) => (),
@@ -426,6 +436,26 @@ impl Term {
                     Ok(Value::SValue(SValue::Option(None)))
                 }
             }
+            MapOr(t1, t2, t3) => {
+                let v1 = t1.reduce()?;
+                let v2 = t2.reduce()?;
+                let v3 = t3.reduce()?;
+                match v3 {
+                    Value::SValue(SValue::Option(o)) => {
+                        if let Some(v) = o {
+                            let mut t = match v2 {
+                                Value::SValue(SValue::Abs(t)) => t.inner,
+                                _ => panic!("type error: not function"),
+                            };
+                            t.subst_top(&mut (*v).into());
+                            t.reduce()
+                        } else {
+                            Ok(v1)
+                        }
+                    }
+                    _ => panic!("type error: not option"),
+                }
+            }
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();
                 let ty0 = v.type_of();
@@ -450,7 +480,18 @@ impl Term {
                         ))))
                     }
                     (Type::Option(ty1), Type::Option(ty2)) if consistent => {
-                        unimplemented!("{:?} {:?}", ty1, ty2);
+                        let t = Term::map_or(
+                            Term::Option(None),
+                            Term::Abs(Tagged::new(
+                                Type::Arrow(ty2.clone(), ty1.clone()),
+                                Box::new(Term::Cast(
+                                    *ty1,
+                                    Box::new(Term::Var(Tagged::new(*ty2, Variable(0)))),
+                                )),
+                            )),
+                            v.into(),
+                        );
+                        t.reduce()
                     }
                     (ty, ty0) if !consistent => Err(CastError(ty0, ty)),
                     _ => panic!("unexpected error"),
