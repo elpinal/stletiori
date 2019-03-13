@@ -30,6 +30,7 @@ pub enum Term {
     Vector(Vec<Positional<Term>>),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
+    Get(String, PTerm),
     Cast(Type, Box<Term>),
     Lit(Lit),
 }
@@ -103,6 +104,12 @@ pub enum TranslateError {
         _0, _1, _2
     )]
     NotKeyword(Position, Type, Term),
+
+    #[fail(
+        display = "{}: not map type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotMap(Position, Type, Term),
 
     #[fail(display = "{}: inconsistent types: {:?} and {:?}", _0, _1, _2)]
     NotConsistent(Position, Type, Type),
@@ -244,6 +251,17 @@ impl Term {
                     ))
                 } else {
                     Ok((Term::Option(None), Type::option(Type::Unknown)))
+                }
+            }
+            Tm::Get(s, t) => {
+                let pos = t.pos.clone();
+                let (t, ty) = Term::from_source(*t, env)?;
+                match ty {
+                    Type::Base(BaseType::Map) => Ok((
+                        Term::Get(s, Box::new(Positional::new(pos, t))),
+                        Type::Unknown,
+                    )),
+                    _ => Err(TranslateError::NotMap(pos, ty, t)),
                 }
             }
             Tm::Lit(l) => {

@@ -36,6 +36,7 @@ pub enum Term {
     Vector(Vec<Term>),
     Map(BTreeMap<Term, Term>),
     Option(Option<BTerm>),
+    Get(String, BTerm),
     MapOr(BTerm, BTerm, BTerm),
     Cast(Type, BTerm),
     Lit(Lit),
@@ -85,6 +86,12 @@ pub enum TypeError {
         _0, _1, _2
     )]
     NotKeyword(Position, Type, Tm),
+
+    #[fail(
+        display = "{}: not map type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotMap(Position, Type, Tm),
 
     #[fail(display = "{}: {:?} is not equal to {:?}", _0, _1, _2)]
     NotEqual(Position, Type, Type),
@@ -165,6 +172,15 @@ impl Positional<Tm> {
                     Ok((Term::Option(Some(Box::new(t))), Type::option(ty)))
                 } else {
                     Ok((Term::Option(None), Type::option(Type::Unknown)))
+                }
+            }
+            Get(ref s, ref t) => {
+                let (t0, ty) = t.type_of(ctx)?;
+                match ty {
+                    Type::Base(BaseType::Map) => {
+                        Ok((Term::Get(s.clone(), Box::new(t0)), Type::Unknown))
+                    }
+                    _ => Err(TypeError::NotMap(t.pos.clone(), ty, t.inner.clone())),
                 }
             }
             Cast(ref ty, ref t) => {
@@ -352,6 +368,9 @@ impl Term {
                     x.map(f, c);
                 }
             }
+            Get(_, ref mut t) => {
+                t.map(f, c);
+            }
             MapOr(ref mut t1, ref mut t2, ref mut t3) => {
                 t1.map(f, c);
                 t2.map(f, c);
@@ -435,6 +454,14 @@ impl Term {
                 } else {
                     Ok(Value::SValue(SValue::Option(None)))
                 }
+            }
+            Get(s, t) => {
+                let v = t.reduce()?.unbox();
+                let mut m = match v {
+                    SValue::Map(m) => m,
+                    _ => panic!("type error: not map"),
+                };
+                Ok(Value::SValue(SValue::Option(m.remove(&s).map(Box::new))))
             }
             MapOr(t1, t2, t3) => {
                 let v1 = t1.reduce()?;

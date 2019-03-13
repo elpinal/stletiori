@@ -46,6 +46,7 @@ pub enum Term {
     Vector(Vec<Positional<Term>>),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
+    Get(String, PTerm),
     Lit(Lit),
 }
 

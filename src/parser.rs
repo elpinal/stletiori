@@ -542,6 +542,13 @@ impl Parser {
                             Term::Option(Some(Box::new(t))),
                         ))
                     }
+                    TokenKind::Lit(Lit::Keyword(ref s)) => {
+                        let s = s.clone();
+                        self.proceed();
+                        let t = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(start.to(end), Term::Get(s, Box::new(t))))
+                    }
                     _ => {
                         let t1 = self.term()?;
                         let t2 = self.term()?;
