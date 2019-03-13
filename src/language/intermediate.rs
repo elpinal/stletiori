@@ -319,7 +319,16 @@ impl Term {
                         Term::Get(s, Box::new(Positional::new(pos, t))),
                         Type::Unknown,
                     )),
-                    // TODO: unknown type?
+                    Type::Unknown => Ok((
+                        Term::Get(
+                            s,
+                            Box::new(Positional::new(
+                                pos,
+                                Term::cast(Type::Base(BaseType::Map), t),
+                            )),
+                        ),
+                        Type::Unknown,
+                    )),
                     _ => Err(TranslateError::NotMap(pos, ty, t)),
                 }
             }
