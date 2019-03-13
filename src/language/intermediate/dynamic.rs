@@ -511,7 +511,7 @@ impl Term {
                             Ok(v1)
                         }
                     }
-                    _ => panic!("type error: not option"),
+                    _ => panic!("type error: not option: {:?}", v3),
                 }
             }
             Panic(pos, s) => Err(ReductionError::Panic(pos, s)),
@@ -543,10 +543,10 @@ impl Term {
                             Term::Option(None),
                             Term::Abs(Tagged::new(
                                 Type::Arrow(ty2.clone(), ty1.clone()),
-                                Box::new(Term::Cast(
+                                Box::new(Term::Option(Some(Box::new(Term::Cast(
                                     *ty1,
                                     Box::new(Term::Var(Tagged::new(*ty2, Variable(0)))),
-                                )),
+                                ))))),
                             )),
                             v.into(),
                         );
