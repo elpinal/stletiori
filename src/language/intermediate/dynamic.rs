@@ -35,6 +35,7 @@ pub enum Term {
     Let(BTerm, BTerm),
     Vector(Vec<Term>),
     Map(BTreeMap<Term, Term>),
+    Option(Option<BTerm>),
     Cast(Type, BTerm),
     Lit(Lit),
 }
@@ -157,6 +158,14 @@ impl Positional<Tm> {
                     .collect::<Result<_, TypeError>>()?;
                 Ok((Term::Map(xs), Type::Base(BaseType::Map)))
             }
+            Option(ref o) => {
+                if let Some(ref t) = *o {
+                    let (t, ty) = t.type_of(ctx)?;
+                    Ok((Term::Option(Some(Box::new(t))), Type::option(ty)))
+                } else {
+                    Ok((Term::Option(None), Type::option(Type::Unknown)))
+                }
+            }
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
                 if ty0.is_consistent(ty) {
@@ -208,6 +217,7 @@ pub enum SValue {
     Abs(Tagged<BTerm>),
     Vector(Vec<Value>),
     Map(BTreeMap<String, Value>),
+    Option(Option<Box<Value>>),
     Lit(Lit),
 }
 
@@ -228,6 +238,7 @@ impl From<SValue> for Term {
                 m.into_iter()
                     .map(|(k, v)| (Term::keyword(k), Term::from(v))),
             ),
+            SValue::Option(o) => Term::Option(o.map(|x| Box::new(Term::from(*x)))),
             SValue::Lit(l) => Term::Lit(l),
         }
     }
@@ -264,6 +275,13 @@ impl SValue {
             SValue::Abs(ref t) => t.tag.clone(),
             SValue::Vector(_) => Type::Base(BaseType::Vector),
             SValue::Map(_) => Type::Base(BaseType::Map),
+            SValue::Option(ref o) => {
+                if let Some(ref x) = *o {
+                    Type::option(x.type_of())
+                } else {
+                    Type::option(Type::Unknown)
+                }
+            }
             SValue::Lit(ref l) => l.type_of(),
         }
     }
@@ -323,6 +341,11 @@ impl Term {
                     m1.insert(k, v);
                 }
                 *self = Term::Map(m1);
+            }
+            Option(ref mut o) => {
+                if let Some(x) = o.as_mut() {
+                    x.map(f, c);
+                }
             }
             Cast(_, ref mut t) => t.map(f, c),
             Lit(_) => (),
@@ -396,6 +419,13 @@ impl Term {
                     .map(|(t1, t2)| Ok((t1.reduce()?.get_keyword(), t2.reduce()?)))
                     .collect::<Result<BTreeMap<_, _>, _>>()?,
             ))),
+            Option(o) => {
+                if let Some(t) = o {
+                    Ok(Value::SValue(SValue::Option(Some(Box::new(t.reduce()?)))))
+                } else {
+                    Ok(Value::SValue(SValue::Option(None)))
+                }
+            }
             Cast(ty, t) => {
                 let v = t.reduce()?.unbox();
                 let ty0 = v.type_of();

@@ -41,6 +41,8 @@ enum TokenKind {
     Fn,
     Let,
     DoubleQuote,
+    None,
+    Some,
 }
 
 #[derive(Clone, Debug)]
@@ -332,6 +334,8 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "let" => TokenKind::Let,
         "true" => TokenKind::Lit(Lit::Bool(true)),
         "false" => TokenKind::Lit(Lit::Bool(false)),
+        "None" => TokenKind::None,
+        "Some" => TokenKind::Some,
         _ => TokenKind::Ident(s),
     }
 }
@@ -513,6 +517,15 @@ impl Parser {
                         let end = self.expect(TokenKind::RParen)?.pos;
                         Ok(Positional::new(start.to(end), Term::r#let(name, t1, t2)))
                     }
+                    TokenKind::Some => {
+                        self.proceed();
+                        let t = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(
+                            start.to(end),
+                            Term::Option(Some(Box::new(t))),
+                        ))
+                    }
                     _ => {
                         let t1 = self.term()?;
                         let t2 = self.term()?;
@@ -549,6 +562,10 @@ impl Parser {
                 }
                 let end = self.expect(TokenKind::RBrace)?.pos;
                 Ok(Positional::new(start.to(end), Term::Map(m)))
+            }
+            TokenKind::None => {
+                self.proceed();
+                Ok(Positional::new(start, Term::Option(None)))
             }
             TokenKind::Lit(ref l) => {
                 let l = l.clone();

@@ -32,6 +32,7 @@ pub enum Type {
     Base(BaseType),
     Unknown,
     Arrow(Box<Type>, Box<Type>),
+    Option(Box<Type>),
 }
 
 type PTerm = Box<Positional<Term>>;
@@ -44,6 +45,7 @@ pub enum Term {
     Let(Name, PTerm, PTerm),
     Vector(Vec<Positional<Term>>),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
+    Option(Option<PTerm>),
     Lit(Lit),
 }
 
@@ -58,6 +60,10 @@ pub enum Lit {
 impl Type {
     pub(crate) fn arrow(ty1: Type, ty2: Type) -> Self {
         Type::Arrow(Box::new(ty1), Box::new(ty2))
+    }
+
+    fn option(ty: Type) -> Self {
+        Type::Option(Box::new(ty))
     }
 
     fn is_consistent(&self, ty: &Type) -> bool {

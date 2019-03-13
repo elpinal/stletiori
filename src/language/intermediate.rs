@@ -29,6 +29,7 @@ pub enum Term {
     Let(Name, PTerm, PTerm),
     Vector(Vec<Positional<Term>>),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
+    Option(Option<PTerm>),
     Cast(Type, Box<Term>),
     Lit(Lit),
 }
@@ -232,6 +233,18 @@ impl Term {
                     })
                     .collect::<Result<_, TranslateError>>()?;
                 Ok((Term::Map(m), Type::Base(BaseType::Map)))
+            }
+            Tm::Option(o) => {
+                if let Some(t) = o {
+                    let pos = t.pos.clone();
+                    let (t, ty) = Term::from_source(*t, env)?;
+                    Ok((
+                        Term::Option(Some(Box::new(Positional::new(pos, t)))),
+                        Type::option(ty),
+                    ))
+                } else {
+                    Ok((Term::Option(None), Type::option(Type::Unknown)))
+                }
             }
             Tm::Lit(l) => {
                 let ty = l.type_of();
