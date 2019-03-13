@@ -38,6 +38,7 @@ pub enum Term {
     Option(Option<BTerm>),
     Get(String, BTerm),
     MapOr(BTerm, BTerm, BTerm),
+    Str(Vec<Term>),
     Panic(Position, String),
     Cast(Type, BTerm),
     Lit(Lit),
@@ -208,6 +209,14 @@ impl Positional<Tm> {
                     _ => Err(TypeError::NotFunction(tp2, ty2, t2.inner.clone())),
                 }
             }
+            Str(ref v) => Ok((
+                Term::Str(
+                    v.iter()
+                        .map(|t| Ok(t.type_of(ctx)?.0))
+                        .collect::<Result<_, TypeError>>()?,
+                ),
+                Type::Base(BaseType::String),
+            )),
             Panic(ref pos, ref s) => Ok((Term::Panic(pos.clone(), s.clone()), Type::Unknown)),
             Cast(ref ty, ref t) => {
                 let (s, ty0) = Positional::new(pos.clone(), *t.clone()).type_of(ctx)?;
@@ -407,6 +416,7 @@ impl Term {
                 t2.map(f, c);
                 t3.map(f, c);
             }
+            Str(ref mut v) => v.iter_mut().for_each(|t| t.map(f, c)),
             Cast(_, ref mut t) => t.map(f, c),
             Lit(_) | Panic(..) => (),
         }
@@ -513,6 +523,18 @@ impl Term {
                     }
                     _ => panic!("type error: not option: {:?}", v3),
                 }
+            }
+            Str(v) => {
+                let mut buf = String::new();
+                for t in v.into_iter() {
+                    let v = t.reduce()?.unbox();
+                    match v {
+                        SValue::Lit(self::Lit::String(s)) => buf.push_str(&s),
+                        SValue::Lit(self::Lit::Int(n)) => buf.push_str(&n.to_string()),
+                        _ => unimplemented!("applying `str` to {:?}", v),
+                    }
+                }
+                Ok(Value::SValue(SValue::Lit(self::Lit::String(buf))))
             }
             Panic(pos, s) => Err(ReductionError::Panic(pos, s)),
             Cast(ty, t) => {

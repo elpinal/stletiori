@@ -32,6 +32,7 @@ pub enum Term {
     Option(Option<PTerm>),
     Get(String, PTerm),
     MapOr(PTerm, PTerm, PTerm),
+    Str(Vec<Positional<Term>>),
     Panic(Position, String),
     Cast(Type, Box<Term>),
     Lit(Lit),
@@ -332,6 +333,13 @@ impl Term {
                     _ => Err(TranslateError::NotMap(pos, ty, t)),
                 }
             }
+            Tm::Str(v) => Ok((
+                Str(v
+                    .into_iter()
+                    .map(|t| Ok(Positional::new(t.pos.clone(), Term::from_source(t, env)?.0)))
+                    .collect::<Result<_, TranslateError>>()?),
+                Type::Base(BaseType::String),
+            )),
             Tm::Panic(pos, s) => Ok((Term::Panic(pos, s), Type::Unknown)),
             Tm::Lit(l) => {
                 let ty = l.type_of();

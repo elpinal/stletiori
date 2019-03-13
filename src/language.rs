@@ -49,6 +49,7 @@ pub enum Term {
     Option(Option<PTerm>),
     Get(String, PTerm),
     MapOr(PTerm, PTerm, PTerm),
+    Str(Vec<Positional<Term>>),
     Panic(Position, String),
     Lit(Lit),
 }

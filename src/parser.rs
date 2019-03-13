@@ -41,6 +41,7 @@ enum TokenKind {
     Colon,
     Fn,
     Let,
+    Str,
     Panic,
     DoubleQuote,
     None,
@@ -336,6 +337,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "string" => TokenKind::String,
         "fn" => TokenKind::Fn,
         "let" => TokenKind::Let,
+        "str" => TokenKind::Str,
         "panic" => TokenKind::Panic,
         "true" => TokenKind::Lit(Lit::Bool(true)),
         "false" => TokenKind::Lit(Lit::Bool(false)),
@@ -544,6 +546,30 @@ impl Parser {
                         let t2 = self.term()?;
                         let end = self.expect(TokenKind::RParen)?.pos;
                         Ok(Positional::new(start.to(end), Term::r#let(name, t1, t2)))
+                    }
+                    TokenKind::Str => {
+                        self.proceed();
+                        let mut v = Vec::new();
+                        let end;
+                        loop {
+                            match self.src.peek() {
+                                Some(Token {
+                                    kind: TokenKind::RParen,
+                                    pos,
+                                }) => {
+                                    end = pos.clone();
+                                    break;
+                                }
+                                Some(_) => (),
+                                None => {
+                                    Err(ParseError::unexpected_eof("term or right parenthesis"))?
+                                }
+                            }
+                            let t = self.term()?;
+                            v.push(t);
+                        }
+                        self.proceed();
+                        Ok(Positional::new(start.to(end), Term::Str(v)))
                     }
                     TokenKind::Panic => {
                         self.proceed();
