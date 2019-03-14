@@ -45,6 +45,7 @@ pub enum Term {
     App(PTerm, PTerm),
     Let(Name, PTerm, PTerm),
     Vector(Vec<Positional<Term>>),
+    Cons(PTerm, PTerm),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
     FoldLeft(PTerm, PTerm, PTerm),
@@ -107,6 +108,10 @@ impl Term {
 
     pub(crate) fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::Let(name, Box::new(t1), Box::new(t2))
+    }
+
+    pub(crate) fn cons(t1: Positional<Term>, t2: Positional<Term>) -> Self {
+        Term::Cons(Box::new(t1), Box::new(t2))
     }
 
     pub(crate) fn fold_left(

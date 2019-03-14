@@ -28,6 +28,7 @@ pub enum Term {
     App(PTerm, PTerm),
     Let(Name, PTerm, PTerm),
     Vector(Vec<Positional<Term>>),
+    Cons(PTerm, PTerm),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
     FoldLeft(PTerm, PTerm, PTerm),
@@ -161,6 +162,10 @@ impl Term {
         Term::Let(name, Box::new(t1), Box::new(t2))
     }
 
+    fn cons(t1: Positional<Term>, t2: Positional<Term>) -> Self {
+        Term::Cons(Box::new(t1), Box::new(t2))
+    }
+
     fn fold_left(t1: Positional<Term>, t2: Positional<Term>, t3: Positional<Term>) -> Self {
         Term::FoldLeft(Box::new(t1), Box::new(t2), Box::new(t3))
     }
@@ -245,6 +250,21 @@ impl Term {
                     .map(|t| Ok(Positional::new(t.pos.clone(), Term::from_source(t, env)?.0)))
                     .collect::<Result<_, TranslateError>>()?;
                 Ok((Term::Vector(v), Type::Base(BaseType::Vector)))
+            }
+            Tm::Cons(t1, t2) => {
+                let tp1 = t1.pos.clone();
+                let tp2 = t2.pos.clone();
+                let (t1, _) = Term::from_source(*t1, env)?;
+                let (t2, ty2) = Term::from_source(*t2, env)?;
+                let t2 = match ty2 {
+                    Type::Base(BaseType::Vector) => t2,
+                    Type::Unknown => Term::cast(Type::Base(BaseType::Vector), t2),
+                    _ => Err(TranslateError::NotVector(tp2.clone(), ty2.clone(), t2))?,
+                };
+                Ok((
+                    Term::cons(Positional::new(tp1, t1), Positional::new(tp2, t2)),
+                    Type::Base(BaseType::Vector),
+                ))
             }
             Tm::Map(m) => {
                 let m = m

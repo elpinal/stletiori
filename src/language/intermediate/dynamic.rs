@@ -34,6 +34,7 @@ pub enum Term {
     App(BTerm, BTerm),
     Let(BTerm, BTerm),
     Vector(Vec<Term>),
+    Cons(BTerm, BTerm),
     Map(BTreeMap<Term, Term>),
     Option(Option<BTerm>),
     FoldLeft(BTerm, BTerm, BTerm),
@@ -63,6 +64,10 @@ impl Term {
         I: IntoIterator<Item = Term>,
     {
         Term::Vector(iter.into_iter().collect())
+    }
+
+    fn cons(t1: Term, t2: Term) -> Self {
+        Term::Cons(Box::new(t1), Box::new(t2))
     }
 
     fn sorted_map<I>(iter: I) -> Self
@@ -183,6 +188,15 @@ impl Positional<Tm> {
                     .map(|t| Ok(t.type_of(ctx)?.0))
                     .collect::<Result<_, TypeError>>()?;
                 Ok((Term::Vector(xs), Type::Base(BaseType::Vector)))
+            }
+            Cons(ref t1, ref t2) => {
+                let tp2 = t2.pos.clone();
+                let (s1, _) = t1.type_of(ctx)?;
+                let (s2, ty2) = t2.type_of(ctx)?;
+                if !ty2.is_vector() {
+                    return Err(TypeError::NotVector(tp2, ty2, t2.inner.clone()));
+                }
+                Ok((Term::cons(s1, s2), Type::Base(BaseType::Vector)))
             }
             Map(ref m) => {
                 let xs = m
@@ -437,6 +451,10 @@ impl Term {
                 t2.map(f, c + 1);
             }
             Vector(ref mut v) => v.iter_mut().for_each(|t| t.map(f, c)),
+            Cons(ref mut t1, ref mut t2) => {
+                t1.map(f, c);
+                t2.map(f, c);
+            }
             Map(ref m) => {
                 let mut m1 = BTreeMap::new();
                 for (mut k, mut v) in m.iter().map(|(k, v)| (k.clone(), v.clone())) {
@@ -532,6 +550,16 @@ impl Term {
                     .map(|t| (t.reduce()))
                     .collect::<Result<Vec<_>, _>>()?,
             ))),
+            Cons(t1, t2) => {
+                let v1 = t1.reduce()?;
+                let v2 = t2.reduce()?;
+                let mut v = match v2.unbox() {
+                    SValue::Vector(v) => v,
+                    _ => panic!("type error: not vector"),
+                };
+                v.insert(0, v1);
+                Ok(Value::SValue(SValue::Vector(v)))
+            }
             Map(m) => Ok(Value::SValue(SValue::Map(
                 m.into_iter()
                     .map(|(t1, t2)| Ok((t1.reduce()?.get_keyword(), t2.reduce()?)))
