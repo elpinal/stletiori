@@ -30,6 +30,7 @@ pub enum Term {
     Vector(Vec<Positional<Term>>),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
+    FoldLeft(PTerm, PTerm, PTerm),
     Get(String, PTerm),
     MapOr(PTerm, PTerm, PTerm),
     Str(Vec<Positional<Term>>),
@@ -109,6 +110,12 @@ pub enum TranslateError {
     NotKeyword(Position, Type, Term),
 
     #[fail(
+        display = "{}: not vector type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotVector(Position, Type, Term),
+
+    #[fail(
         display = "{}: not map type: {:?}, which is the type of {:?}",
         _0, _1, _2
     )]
@@ -152,6 +159,10 @@ impl Term {
 
     fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::Let(name, Box::new(t1), Box::new(t2))
+    }
+
+    fn fold_left(t1: Positional<Term>, t2: Positional<Term>, t3: Positional<Term>) -> Self {
+        Term::FoldLeft(Box::new(t1), Box::new(t2), Box::new(t3))
     }
 
     fn map_or(t1: Positional<Term>, t2: Positional<Term>, t3: Positional<Term>) -> Self {
@@ -266,6 +277,86 @@ impl Term {
                     Ok((Term::Option(None), Type::option(Type::Unknown)))
                 }
             }
+            Tm::FoldLeft(t1, t2, t3) => {
+                let tp1 = t1.pos.clone();
+                let tp2 = t2.pos.clone();
+                let tp3 = t3.pos.clone();
+                let (t1, ty1) = Term::from_source(*t1, env)?;
+                let (t2, ty2) = Term::from_source(*t2, env)?;
+                let (t3, ty3) = Term::from_source(*t3, env)?;
+                let t3 = match ty3 {
+                    Type::Unknown => Term::cast(Type::Base(BaseType::Vector), t3),
+                    Type::Base(BaseType::Vector) => t3,
+                    _ => Err(TranslateError::NotVector(tp3.clone(), ty3.clone(), t3))?,
+                };
+                match ty2 {
+                    Type::Unknown => Ok((
+                        Term::fold_left(
+                            Positional::new(tp1, t1),
+                            Positional::new(
+                                tp2,
+                                Term::cast(
+                                    Type::arrow(
+                                        ty1.clone(),
+                                        Type::arrow(Type::Unknown, ty1.clone()),
+                                    ),
+                                    t2,
+                                ),
+                            ),
+                            Positional::new(tp3, t3),
+                        ),
+                        ty1,
+                    )),
+                    Type::Arrow(box ty21, box Type::Arrow(ty22, ty23)) => {
+                        if !ty1.is_consistent(&ty21) {
+                            return Err(TranslateError::NotConsistent(pos, ty1, ty21));
+                        }
+                        if !ty21.is_consistent(&ty23) {
+                            return Err(TranslateError::NotConsistent(pos, ty21, *ty23));
+                        }
+                        if !ty23.is_consistent(&ty1) {
+                            return Err(TranslateError::NotConsistent(pos, *ty23, ty1));
+                        }
+                        Ok((
+                            Term::fold_left(
+                                Positional::new(tp1, Term::cast(ty21.clone(), t1)),
+                                Positional::new(
+                                    tp2,
+                                    Term::cast(
+                                        Type::arrow(ty21.clone(), Type::arrow(*ty22, ty21.clone())),
+                                        t2,
+                                    ),
+                                ),
+                                Positional::new(tp3, t3),
+                            ),
+                            ty21,
+                        ))
+                    }
+                    Type::Arrow(box ty21, box Type::Unknown) => {
+                        if !ty1.is_consistent(&ty21) {
+                            return Err(TranslateError::NotConsistent(pos, ty1, ty21));
+                        }
+                        Ok((
+                            Term::fold_left(
+                                Positional::new(tp1, Term::cast(ty21.clone(), t1)),
+                                Positional::new(
+                                    tp2,
+                                    Term::cast(
+                                        Type::arrow(
+                                            ty21.clone(),
+                                            Type::arrow(Type::Unknown, ty21.clone()),
+                                        ),
+                                        t2,
+                                    ),
+                                ),
+                                Positional::new(tp3, t3),
+                            ),
+                            ty21,
+                        ))
+                    }
+                    _ => Err(TranslateError::NotFunction(tp2, ty2, t2)),
+                }
+            }
             Tm::MapOr(t1, t2, t3) => {
                 let tp1 = t1.pos.clone();
                 let tp2 = t2.pos.clone();
@@ -309,7 +400,7 @@ impl Term {
                             ty1,
                         ))
                     }
-                    _ => Err(TranslateError::NotFunction(tp1, ty1, t1)),
+                    _ => Err(TranslateError::NotFunction(tp2, ty2, t2)),
                 }
             }
             Tm::Get(s, t) => {

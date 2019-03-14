@@ -1,4 +1,5 @@
 #![feature(bind_by_move_pattern_guards)]
+#![feature(box_patterns)]
 #![feature(try_from)]
 
 pub mod html;

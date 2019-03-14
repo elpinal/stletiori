@@ -42,6 +42,7 @@ enum TokenKind {
     Fn,
     Let,
     Str,
+    FoldLeft,
     Panic,
     DoubleQuote,
     None,
@@ -338,6 +339,7 @@ fn reserved_or_ident(s: String) -> TokenKind {
         "fn" => TokenKind::Fn,
         "let" => TokenKind::Let,
         "str" => TokenKind::Str,
+        "fold-left" => TokenKind::FoldLeft,
         "panic" => TokenKind::Panic,
         "true" => TokenKind::Lit(Lit::Bool(true)),
         "false" => TokenKind::Lit(Lit::Bool(false)),
@@ -570,6 +572,14 @@ impl Parser {
                         }
                         self.proceed();
                         Ok(Positional::new(start.to(end), Term::Str(v)))
+                    }
+                    TokenKind::FoldLeft => {
+                        self.proceed();
+                        let t1 = self.term()?;
+                        let t2 = self.term()?;
+                        let t3 = self.term()?;
+                        let end = self.expect(TokenKind::RParen)?.pos;
+                        Ok(Positional::new(start.to(end), Term::fold_left(t1, t2, t3)))
                     }
                     TokenKind::Panic => {
                         self.proceed();

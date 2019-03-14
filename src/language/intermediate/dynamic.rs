@@ -36,6 +36,7 @@ pub enum Term {
     Vector(Vec<Term>),
     Map(BTreeMap<Term, Term>),
     Option(Option<BTerm>),
+    FoldLeft(BTerm, BTerm, BTerm),
     Get(String, BTerm),
     MapOr(BTerm, BTerm, BTerm),
     Str(Vec<Term>),
@@ -70,6 +71,14 @@ impl Term {
     {
         Term::Map(iter.into_iter().collect())
     }
+
+    fn fold_left(t1: Term, t2: Term, t3: Term) -> Self {
+        Term::FoldLeft(Box::new(t1), Box::new(t2), Box::new(t3))
+    }
+
+    fn cast(ty: Type, t: Term) -> Self {
+        Term::Cast(ty, Box::new(t))
+    }
 }
 
 #[derive(Debug, Fail, PartialEq)]
@@ -84,10 +93,22 @@ pub enum TypeError {
     NotFunction(Position, Type, Tm),
 
     #[fail(
+        display = "{}: not binary function type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    Not2Function(Position, Type, Tm),
+
+    #[fail(
         display = "{}: not keyword type: {:?}, which is the type of {:?}",
         _0, _1, _2
     )]
     NotKeyword(Position, Type, Tm),
+
+    #[fail(
+        display = "{}: not vector type: {:?}, which is the type of {:?}",
+        _0, _1, _2
+    )]
+    NotVector(Position, Type, Tm),
 
     #[fail(
         display = "{}: not map type: {:?}, which is the type of {:?}",
@@ -182,6 +203,28 @@ impl Positional<Tm> {
                     Ok((Term::Option(None), Type::option(Type::Unknown)))
                 }
             }
+            FoldLeft(ref t1, ref t2, ref t3) => {
+                let tp2 = t2.pos.clone();
+                let tp3 = t3.pos.clone();
+                let (s1, ty1) = t1.type_of(ctx)?;
+                let (s2, ty2) = t2.type_of(ctx)?;
+                let (s3, ty3) = t3.type_of(ctx)?;
+                match ty2 {
+                    Type::Arrow(ty21, box Type::Arrow(_, ty23)) => {
+                        if ty1 != *ty21 {
+                            return Err(TypeError::NotEqual(pos, ty1, *ty21));
+                        }
+                        if ty21 != ty23 {
+                            return Err(TypeError::NotEqual(pos, *ty21, *ty23));
+                        }
+                        if !ty3.is_vector() {
+                            return Err(TypeError::NotVector(tp3, ty3, t3.inner.clone()));
+                        }
+                        Ok((Term::fold_left(s1, s2, s3), *ty21))
+                    }
+                    _ => Err(TypeError::Not2Function(tp2, ty2, t2.inner.clone())),
+                }
+            }
             Get(ref s, ref t) => {
                 let (t0, ty) = t.type_of(ctx)?;
                 match ty {
@@ -263,7 +306,7 @@ impl Context {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum SValue {
     Var(Tagged<Variable>),
     Abs(Tagged<BTerm>),
@@ -273,7 +316,7 @@ pub enum SValue {
     Lit(Lit),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Value {
     SValue(SValue),
     /// Cast to unknown type.
@@ -408,6 +451,11 @@ impl Term {
                     x.map(f, c);
                 }
             }
+            FoldLeft(ref mut t1, ref mut t2, ref mut t3) => {
+                t1.map(f, c);
+                t2.map(f, c);
+                t3.map(f, c);
+            }
             Get(_, ref mut t) => {
                 t.map(f, c);
             }
@@ -495,6 +543,24 @@ impl Term {
                 } else {
                     Ok(Value::SValue(SValue::Option(None)))
                 }
+            }
+            FoldLeft(t1, t2, t3) => {
+                let v1 = t1.reduce()?;
+                let v2 = t2.reduce()?;
+                let v3 = t3.reduce()?;
+                let v = match v3.unbox() {
+                    SValue::Vector(v) => v,
+                    _ => panic!("type error: not vector"),
+                };
+                let mut acc = v1;
+                for x in v.into_iter() {
+                    acc = Term::app(
+                        Term::app(v2.clone().into(), acc.into()),
+                        Term::cast(Type::Unknown, x.into()),
+                    )
+                    .reduce()?;
+                }
+                Ok(acc)
             }
             Get(s, t) => {
                 let v = t.reduce()?.unbox();

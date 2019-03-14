@@ -47,6 +47,7 @@ pub enum Term {
     Vector(Vec<Positional<Term>>),
     Map(BTreeMap<Positional<Term>, Positional<Term>>),
     Option(Option<PTerm>),
+    FoldLeft(PTerm, PTerm, PTerm),
     Get(String, PTerm),
     MapOr(PTerm, PTerm, PTerm),
     Str(Vec<Positional<Term>>),
@@ -85,6 +86,14 @@ impl Type {
             _ => false,
         }
     }
+
+    fn is_vector(&self) -> bool {
+        if let Type::Base(BaseType::Vector) = *self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl Term {
@@ -98,6 +107,14 @@ impl Term {
 
     pub(crate) fn r#let(name: Name, t1: Positional<Term>, t2: Positional<Term>) -> Self {
         Term::Let(name, Box::new(t1), Box::new(t2))
+    }
+
+    pub(crate) fn fold_left(
+        t1: Positional<Term>,
+        t2: Positional<Term>,
+        t3: Positional<Term>,
+    ) -> Self {
+        Term::FoldLeft(Box::new(t1), Box::new(t2), Box::new(t3))
     }
 
     pub(crate) fn map_or(t1: Positional<Term>, t2: Positional<Term>, t3: Positional<Term>) -> Self {
