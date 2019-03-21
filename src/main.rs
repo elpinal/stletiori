@@ -100,7 +100,12 @@ where
     }
     let doc = html::HtmlDocument::new(v.into_html()?);
     if let Some(output) = arg.output_filename {
-        std::fs::write(output, doc.to_string())?;
+        if let Some(dir) = output.parent() {
+            std::fs::create_dir_all(dir)
+                .with_context(|e| format!("creating directory {:?}: {}", dir, e))?;
+        }
+        std::fs::write(&output, doc.to_string())
+            .with_context(|e| format!("writing to {:?}: {}", output, e))?;
     } else {
         println!("{}", doc);
     }
