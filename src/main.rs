@@ -35,6 +35,10 @@ struct Argument {
     #[structopt(short, long)]
     reduce: bool,
 
+    /// Output directory
+    #[structopt(short = "d", long = "directory", parse(from_os_str))]
+    output_directory: Option<PathBuf>,
+
     /// Output filename
     #[structopt(short, long = "output", parse(from_os_str))]
     output_filename: Option<PathBuf>,
@@ -58,7 +62,7 @@ where
     P: AsRef<Path>,
 {
     let mut s = String::new();
-    File::open(filename)?.read_to_string(&mut s)?;
+    File::open(&filename)?.read_to_string(&mut s)?;
     let t = parse(s.chars())?;
     if arg.parse {
         println!("{:?}", t);
@@ -99,6 +103,22 @@ where
         return Ok(());
     }
     let doc = html::HtmlDocument::new(v.into_html()?);
+
+    if let Some(mut dir) = arg.output_directory {
+        let base = filename
+            .as_ref()
+            .file_stem()
+            .expect("file_stem: unexpected error");
+        dir.push(base);
+        std::fs::create_dir_all(&dir)
+            .with_context(|e| format!("creating directory {:?}: {}", dir, e))?;
+        let mut output = dir;
+        output.push("index.html");
+        std::fs::write(&output, doc.to_string())
+            .with_context(|e| format!("writing to {:?}: {}", output, e))?;
+        return Ok(());
+    }
+
     if let Some(output) = arg.output_filename {
         if let Some(dir) = output.parent() {
             std::fs::create_dir_all(dir)
